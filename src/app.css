@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap');
+
+:root { font-family: 'DM Sans', sans-serif; color: #202c29; background: #f5f7f5; --q-primary: #21634f; }
+body { margin: 0; font-family: 'DM Sans', sans-serif; }
+.app-header { background: #183c34; color: #fff; }
+.toolbar { max-width: 1080px; min-height: 64px; margin: auto; padding: 0 24px; gap: 12px; }
+.brand { font-size: 19px; font-weight: 700; }
+.page { background: linear-gradient(180deg, #edf3ee 0, #f8faf8 260px); }
+.workspace { max-width: 1000px; margin: auto; padding: 42px 24px 80px; }
+.workspace-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.eyebrow { color: #668479; font-size: 11px; font-weight: 700; }
+h1 { margin: 8px 0 0; font-size: 30px; line-height: 1.2; }
+.muted { color: #687a73; }
+.greeting { margin: 6px 0 0; }
+.workspace-tabs { margin-top: 32px; border-bottom: 1px solid #d5e0da; }
+.workspace-tabs .q-tab { min-height: 58px; padding: 0 20px; }
+.customer-filter { max-width: 420px; margin: 20px 0 0; }
+.settings-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 620px; margin: 28px 0 10px; }
+.settings-summary > div { display: flex; flex-direction: column; gap: 6px; border: 1px solid #dce5df; border-radius: 6px; padding: 16px; background: #fff; }
+.settings-summary span { color: #71817a; font-size: 11px; font-weight: 700; }
+.settings-summary strong { overflow-wrap: anywhere; }
+.printer-view { display: flex; flex-direction: column; gap: 24px; padding-top: 24px; }
+.printer-connection { display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px solid #dce5df; border-radius: 6px; background: #fff; }
+.printer-connection > div { flex: 1; min-width: 0; }
+.printer-connection.connected { border-color: #9ac5b2; background: #f0f7f3; color: #21634f; }
+.printer-actions { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.printer-actions h2 { margin: 0; font-size: 18px; }
+.printer-actions p { margin: 5px 0 0; font-size: 13px; }
+.printer-empty { gap: 10px; text-align: center; padding: 20px; }
+.printer-empty span { max-width: 340px; font-size: 12px; }
+.list-heading { display: flex; justify-content: space-between; margin: 28px 0 12px; color: #71817a; font-size: 12px; font-weight: 700; }
+.records-list { border-top: 1px solid #dce5df; }
+.record-row { display: flex; align-items: center; gap: 10px; min-height: 76px; padding: 12px 0; border-bottom: 1px solid #dce5df; }
+.record-main { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.record-number { color: #71817a; font-size: 12px; }
+.record-detail { color: #71817a; font-size: 12px; margin-top: 3px; overflow-wrap: anywhere; }
+.record-amount { font-weight: 700; white-space: nowrap; }
+.empty-state { min-height: 160px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; color: #8a9b91; border-top: 1px solid #dce5df; }
+.print-note { display: flex; gap: 8px; align-items: center; color: #798b81; font-size: 12px; margin-top: 24px; }
+.access-panel { max-width: 420px; margin: 0 auto; padding: 100px 24px 60px; }
+.access-panel p { margin: 10px 0 28px; }
+.center-message { display: grid; place-items: center; min-height: 45vh; }
+.form-stack { display: flex; flex-direction: column; gap: 16px; }
+.primary-action { min-height: 50px; }
+.notice { padding: 12px; border-radius: 4px; font-size: 13px; }
+.error { color: #8c3730; background: #fff0ed; }
+.editor-card { width: 560px; max-width: calc(100vw - 32px); border-radius: 8px; }
+.receipt-preview-card { width: 520px; max-width: calc(100vw - 24px); border-radius: 8px; }
+.receipt-preview-body { max-height: 72vh; overflow: auto; padding: 8px 16px 20px; background: #e9eee9; }
+.receipt-paper { width: max-content; min-width: 290px; max-width: 100%; margin: 0 auto; padding: 20px 14px; overflow-x: auto; background: #fff; color: #171a18; box-shadow: 0 2px 8px #183c3420; font-family: 'Courier New', monospace; font-size: 14.5px; font-weight: 400; line-height: 1.28; white-space: pre; }
+.editor-header { display: flex; justify-content: space-between; align-items: start; padding: 24px 24px 12px; }
+.editor-header h2 { margin: 4px 0 0; font-size: 23px; line-height: 1.2; text-transform: capitalize; }
+.editor-body { max-height: 65vh; overflow-y: auto; padding: 16px 24px; }
+.editor-actions { padding: 12px 24px 24px; }
+.order-section { display: flex; flex-direction: column; gap: 12px; }
+.order-section + .order-section { border-top: 1px solid #dce5df; padding-top: 18px; }
+.order-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+.order-section-heading h3 { margin: 0; font-size: 15px; font-weight: 700; }
+.order-section-heading span { color: #71817a; font-size: 12px; }
+.order-line { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #e3ebe5; padding-bottom: 12px; }
+.order-line > div:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.quantity { width: 75px; }
+.order-total { display: flex; justify-content: space-between; font-size: 17px; }
+@media (max-width: 600px) { .toolbar { padding: 0 12px; gap: 8px; } .brand { font-size: 17px; } .toolbar .q-badge { font-size: 10px; } .workspace { padding: 28px 16px 60px; } .workspace-top { align-items: flex-start; } .workspace-top .q-btn { font-size: 12px; } .workspace-tabs .q-tab { padding: 0 5px; flex: 1; font-size: 11px; } .access-panel { padding-top: 70px; } .record-row { gap: 5px; } .printer-actions { align-items: flex-start; flex-direction: column; } .printer-actions .q-btn { align-self: stretch; } .printer-connection { align-items: flex-start; flex-wrap: wrap; padding: 14px; } .printer-connection .q-btn { margin-left: auto; } .settings-summary { grid-template-columns: 1fr; } }

@@ -1,0 +1,34 @@
+{
+  "name": "miniventa",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test test/*.test.js",
+    "android:sync": "npm run build && cap sync android",
+    "android:demo:apk": "VITE_DEMO_MODE=true npm run android:sync && cd android && ./gradlew assembleDebug",
+    "android:open": "cap open android"
+  },
+  "dependencies": {
+    "@aparajita/capacitor-secure-storage": "^8.0.1",
+    "@capacitor-community/sqlite": "^8.1.1",
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/core": "^8.6.2",
+    "@quasar/extras": "^2.1.0",
+    "idb": "^8.0.4",
+    "jose": "^6.2.18",
+    "quasar": "^2.35.6",
+    "vue": "^3.5.44"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.6.2",
+    "@quasar/vite-plugin": "^2.0.2",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "fake-indexeddb": "^6.2.8",
+    "sass": "^1.108.2",
+    "vite": "^8.3.6"
+  }
+}

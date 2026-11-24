@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../../api-miniventa"
+		},
+		{
+			"path": ".."
+		}
+	],
+	"settings": {
+		"java.configuration.updateBuildConfiguration": "interactive"
+	}
+}
