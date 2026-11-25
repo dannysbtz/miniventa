@@ -165,7 +165,7 @@ async function selectReceiptLogo(event) {
       image.onload = resolve
       image.onerror = reject
     })
-    const scale = Math.min(1, 384 / image.naturalWidth, 192 / image.naturalHeight)
+    const scale = Math.min(1, 240 / image.naturalWidth, 120 / image.naturalHeight)
     const canvas = document.createElement('canvas')
     canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
     canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
@@ -186,7 +186,7 @@ async function selectReceiptLogo(event) {
 
 async function receiptBrandingForPrint() {
   let logo = null
-  if (receiptBranding.value.logoDataUrl) logo = await loadReceiptLogo(receiptBranding.value.logoDataUrl, 384)
+  if (receiptBranding.value.logoDataUrl) logo = await loadReceiptLogo(receiptBranding.value.logoDataUrl, 240)
   return { title: receiptBranding.value.title || 'MINIVENTA', logo }
 }
 

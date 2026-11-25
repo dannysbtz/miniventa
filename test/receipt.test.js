@@ -48,6 +48,7 @@ test('ticket general permite texto personalizado y logo antes del encabezado', (
   assert.ok(preview.startsWith('Tienda La Esquina\n'))
   const logoCommand = String.fromCharCode(29, 118, 48, 0, 1, 0, 2, 0)
   assert.ok(raw.indexOf(logoCommand) < raw.indexOf('Tienda La Esquina'))
+  assert.ok(raw.lastIndexOf('\x1Ba\x01', raw.indexOf(logoCommand)) >= 0, 'centra el logo usando alineación nativa antes de imprimirlo')
   assert.ok([...bytes].some((byte, index, all) => byte === 0xaa && all[index + 1] === 0x55))
 })
 
