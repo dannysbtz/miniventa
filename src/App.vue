@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { createAuth } from './auth/controller.js'
 import { apiBase, sessionStorage } from './auth/platform.js'
 import { validateOfflinePublicKey } from './auth/offline.js'
@@ -13,6 +13,8 @@ const credentials = reactive({ username: '', password: '' })
 const showPassword = ref(false)
 const tab = ref('orders')
 const customerFilter = ref(null)
+const productSearch = ref('')
+const recordLimit = ref(30)
 const busy = ref(false)
 const error = ref('')
 const dialog = ref(false)
@@ -47,9 +49,15 @@ const routeOptions = computed(() => records.routes.map((item) => ({ label: `${it
 const businessSettings = computed(() => records.settings[0] || { cedis: '', promoter: '' })
 const visibleRecords = computed(() => {
   const current = records[tab.value] || []
-  if (tab.value !== 'orders' || !customerFilter.value) return current
-  return current.filter((item) => item.customer.id === customerFilter.value)
+  let filtered = current
+  if (tab.value === 'orders' && customerFilter.value) filtered = filtered.filter((item) => item.customer.id === customerFilter.value)
+  if (tab.value === 'products' && productSearch.value.trim()) {
+    const query = productSearch.value.trim().toLocaleLowerCase()
+    filtered = filtered.filter((item) => `${item.name} ${item.number}`.toLocaleLowerCase().includes(query))
+  }
+  return filtered
 })
+const displayedRecords = computed(() => visibleRecords.value.slice(0, recordLimit.value))
 const productOptions = computed(() => {
   const saved = [...(form.value.products || []), ...(form.value.changes || [])]
   const products = new Map([...saved, ...records.products].map((item) => [item.id, item]))
@@ -73,7 +81,14 @@ watch(() => authState.value.user?.id, (id) => {
   if (id) loadRecords()
 })
 
+watch([tab, customerFilter, productSearch], () => { recordLimit.value = 30 })
 watch(tab, (value) => { if (value === 'printer') loadPrinters() })
+
+async function loadMoreRecords(_index, done) {
+  recordLimit.value += 30
+  await nextTick()
+  done(recordLimit.value >= visibleRecords.value.length)
+}
 
 async function login() {
   if (!credentials.username.trim() || !credentials.password) { error.value = 'Introduce usuario y contraseña.'; return }
@@ -335,14 +350,15 @@ onUnmounted(() => {
           </section>
           <template v-else>
           <q-select v-if="tab === 'orders'" v-model="customerFilter" class="customer-filter" outlined dense clearable label="Filtrar por cliente" :options="customerOptions" emit-value map-options />
+          <q-input v-if="tab === 'products'" v-model="productSearch" class="product-search" outlined dense clearable debounce="150" label="Buscar producto" placeholder="Nombre o número"><template #prepend><q-icon name="search" /></template></q-input>
           <div v-if="tab === 'settings'" class="settings-summary"><div><span>CEDIS</span><strong>{{ businessSettings.cedis || 'Sin configurar' }}</strong></div><div><span>Promotor</span><strong>{{ businessSettings.promoter || 'Sin configurar' }}</strong></div></div>
-          <div class="list-heading"><span>{{ titles[tab] }}</span><span>{{ visibleRecords.length }}{{ tab === 'orders' && customerFilter ? ` de ${records.orders.length}` : '' }} registros</span></div>
+          <div class="list-heading"><span>{{ titles[tab] }}</span><span>{{ displayedRecords.length }} de {{ visibleRecords.length }}{{ tab === 'orders' && customerFilter ? ` · ${records.orders.length} pedidos` : '' }}</span></div>
           <div v-if="!visibleRecords.length" class="empty-state"><q-icon :name="tab === 'orders' ? 'receipt_long' : tab === 'products' ? 'inventory_2' : 'people_outline'" size="30px" /><strong>{{ tab === 'orders' && customerFilter ? 'No hay pedidos de este cliente' : `Aún no hay ${titles[tab].toLowerCase()}` }}</strong></div>
-          <div v-else class="records-list"><article v-for="item in visibleRecords" :key="item.id" class="record-row">
+          <q-infinite-scroll v-else :key="`${tab}-${customerFilter || ''}-${productSearch}`" :offset="240" @load="loadMoreRecords"><div class="records-list"><article v-for="item in displayedRecords" :key="item.id" class="record-row">
             <div class="record-main"><div class="record-number">#{{ item.number }}</div><strong>{{ tab === 'orders' ? item.customer.name : item.name }}</strong><div v-if="tab === 'customers'" class="record-detail">{{ item.location }} · Ruta {{ item.route?.code || 'sin asignar' }} · {{ (item.visitDays || []).join(',') || 'Sin días' }}</div><div v-if="tab === 'orders'" class="record-detail">{{ item.products.length }} productos · {{ item.changes.length }} cambios</div></div>
             <div v-if="tab === 'products' || tab === 'orders'" class="record-amount">{{ formatMoney(tab === 'products' ? item.priceCents : item.totalCents) }}</div>
             <q-btn v-if="tab === 'orders'" flat round dense icon="visibility" aria-label="Ver ticket" @click="showReceiptPreview(item)"><q-tooltip>Ver ticket</q-tooltip></q-btn><q-btn v-if="tab === 'orders'" flat round dense icon="print" aria-label="Reimprimir ticket" @click="printOrder(item)"><q-tooltip>Reimprimir ticket</q-tooltip></q-btn><q-btn flat round dense icon="edit" aria-label="Editar" @click="openEditor(item)"><q-tooltip>Editar</q-tooltip></q-btn><q-btn flat round dense icon="delete_outline" aria-label="Eliminar" @click="remove(item)"><q-tooltip>Eliminar</q-tooltip></q-btn>
-          </article></div>
+          </article></div><template #loading><div class="scroll-loader"><q-spinner-dots color="primary" size="28px" /><span>Cargando más registros…</span></div></template></q-infinite-scroll>
           <div v-if="tab === 'orders'" class="print-note"><q-icon name="print" size="18px" /> Configura la impresora en su apartado</div>
           </template>
         </div>
