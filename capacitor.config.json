@@ -1,6 +1,6 @@
 {
   "appId": "com.miniventa.general",
-  "appName": "Miniventa General",
+  "appName": "Miniventa Hia",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"
