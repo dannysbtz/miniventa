@@ -4,6 +4,7 @@ import { createAuth } from './auth/controller.js'
 import { apiBase, sessionStorage } from './auth/platform.js'
 import { validateOfflinePublicKey } from './auth/offline.js'
 import { createRepository } from './data/repository.js'
+import { summarizeCut } from './domain/cuts.js'
 import { formatMoney, orderTotal, parseMoney } from './domain/money.js'
 import { connectPrinter, disconnectPrinter, getPairedPrinters, getPrinterState, listenPrinterEvent, printBytes, scanPrinters, stopPrinterScan } from './printer/bluetooth.js'
 import { buildGeneralReceipt, receiptPreview } from './printer/receipt.js'
@@ -27,9 +28,9 @@ const scanningPrinter = ref(false)
 const printerBusy = ref(false)
 const printerError = ref('')
 const receiptNotice = ref('')
-const records = reactive({ products: [], customers: [], orders: [], routes: [], settings: [] })
-const titles = { products: 'Productos', customers: 'Clientes', orders: 'Pedidos', settings: 'Configuración' }
-const singular = { products: 'producto', customers: 'cliente', orders: 'pedido', settings: 'configuración' }
+const records = reactive({ products: [], customers: [], orders: [], cuts: [] })
+const titles = { products: 'Productos', customers: 'Clientes', orders: 'Pedidos', cuts: 'Cortes' }
+const singular = { products: 'producto', customers: 'cliente', orders: 'pedido', cuts: 'corte' }
 let auth
 let repository
 let checkTimer
@@ -42,7 +43,8 @@ const total = computed(() => {
   try { return formatMoney(orderTotal(form.value.products || [])) } catch { return '0.00' }
 })
 const customerOptions = computed(() => records.customers.map((item) => ({ label: item.name, value: item.id })))
-const businessSettings = computed(() => records.settings[0] || { cedis: '', promoter: '' })
+const openCut = computed(() => records.cuts.find((cut) => cut.status === 'open') || null)
+const sortedCuts = computed(() => [...records.cuts].sort((a, b) => b.openedAt.localeCompare(a.openedAt)))
 const visibleRecords = computed(() => {
   const current = records[tab.value] || []
   if (tab.value !== 'orders' || !customerFilter.value) return current
@@ -66,14 +68,14 @@ async function loadRecords() {
   if (!repository || !user) return
   const current = ++generation
   try {
-    const [products, customers, orders, routes, settings] = await Promise.all(['products', 'customers', 'orders', 'routes', 'settings'].map((type) => repository.list(user, type)))
-    if (current === generation && authState.value.user?.id === user) Object.assign(records, { products, customers, orders, routes, settings })
+    const [products, customers, orders, cuts] = await Promise.all(['products', 'customers', 'orders', 'cuts'].map((type) => repository.list(user, type)))
+    if (current === generation && authState.value.user?.id === user) Object.assign(records, { products, customers, orders, cuts })
   } catch { if (current === generation) error.value = 'No se pudieron leer los datos locales.' }
 }
 
 watch(() => authState.value.user?.id, (id) => {
   generation++
-  Object.assign(records, { products: [], customers: [], orders: [], routes: [], settings: [] })
+  Object.assign(records, { products: [], customers: [], orders: [], cuts: [] })
   dialog.value = false
   if (id) loadRecords()
 })
@@ -90,9 +92,8 @@ async function login() {
 function openEditor(item = null) {
   editing.value = item
   error.value = ''
-  if (tab.value === 'products') form.value = item ? { ...item, price: formatMoney(item.priceCents) } : { name: '', price: '' }
+  if (tab.value === 'products') form.value = item ? { ...item, price: formatMoney(item.priceCents), cost: item.costCents == null ? '' : formatMoney(item.costCents) } : { name: '', price: '', cost: '' }
   if (tab.value === 'customers') form.value = item ? { ...item } : { name: '' }
-  if (tab.value === 'settings') form.value = item ? { ...item } : { cedis: businessSettings.value.cedis, promoter: businessSettings.value.promoter }
   if (tab.value === 'orders') form.value = item
     ? { ...JSON.parse(JSON.stringify(item)), customerId: item.customer.id, productId: null, changeId: null }
     : { customerId: null, productId: null, changeId: null, products: [], changes: [] }
@@ -116,7 +117,7 @@ function addProduct(type, productId) {
   const product = records.products.find((item) => item.id === productId) || existing
   if (!product) return
   if (existing) existing.quantity++
-  else form.value[type].push({ id: product.id, number: product.number, name: product.name, priceCents: product.priceCents, quantity: 1 })
+  else form.value[type].push({ id: product.id, number: product.number, name: product.name, priceCents: product.priceCents, costCents: product.costCents, quantity: 1 })
   form.value[field] = null
 }
 
@@ -167,11 +168,7 @@ async function printOrder(order) {
     printerState.value = state
     if (!state.supported) throw new Error('La impresión requiere la aplicación Android.')
     if (!state.connected) throw new Error('No hay impresora conectada. El pedido está guardado; conecta una impresora para reimprimirlo.')
-    await printBytes(buildGeneralReceipt({
-      ...order,
-      cedis: order.cedis || businessSettings.value.cedis,
-      promoterNumber: order.promoterNumber || businessSettings.value.promoter,
-    }))
+    await printBytes(buildGeneralReceipt(order))
     receiptNotice.value = `Ticket de la nota #${order.number} enviado a ${state.name || 'la impresora'}.`
   } catch (issue) {
     receiptNotice.value = `El pedido está guardado, pero no se pudo imprimir: ${issue.message || 'error de impresora'}`
@@ -181,11 +178,7 @@ async function printOrder(order) {
 
 function showReceiptPreview(order) {
   receiptPreviewNumber.value = order.number
-  receiptPreviewText.value = receiptPreview(buildGeneralReceipt({
-    ...order,
-    cedis: order.cedis || businessSettings.value.cedis,
-    promoterNumber: order.promoterNumber || businessSettings.value.promoter,
-  }))
+  receiptPreviewText.value = receiptPreview(buildGeneralReceipt(order))
   receiptPreviewDialog.value = true
 }
 
@@ -197,10 +190,11 @@ async function save() {
     await auth.check()
     if (!authState.value.user) throw new Error('La autorización ha vencido.')
     let value = { ...form.value, id: editing.value?.id }
-    if (tab.value === 'settings') value.id = editing.value?.id || 'business'
     if (tab.value === 'products') {
       value.number = value.number || nextInternalNumber('products')
       value.priceCents = parseMoney(value.price)
+      if (!String(value.cost ?? '').trim()) throw new Error('El costo del producto es obligatorio')
+      value.costCents = parseMoney(value.cost)
     }
     if (tab.value === 'customers') {
       value.number = value.number || nextInternalNumber('customers')
@@ -209,16 +203,18 @@ async function save() {
       delete value.visitDays
     }
     if (tab.value === 'orders') {
+      if (editing.value?.cutId && records.cuts.find((cut) => cut.id === editing.value.cutId)?.status === 'closed') throw new Error('Los pedidos de un corte cerrado no se pueden modificar.')
+      if (!editing.value && !openCut.value) throw new Error('Abre un corte antes de registrar una venta.')
       const customer = records.customers.find((item) => item.id === value.customerId) || (editing.value?.customer.id === value.customerId ? editing.value.customer : null)
+      if (!customer) throw new Error('Selecciona un cliente')
       value.customer = customer
-      value.route = customer?.route || null
-      value.cedis = businessSettings.value.cedis
-      value.promoterNumber = businessSettings.value.promoter
-      value.products = value.products.map((item) => ({ ...item, quantity: Number(item.quantity) }))
+      value.products = value.products.map((item) => {
+        const catalogProduct = records.products.find((product) => product.id === item.id)
+        return { ...item, costCents: item.costCents ?? catalogProduct?.costCents ?? null, quantity: Number(item.quantity) }
+      })
       value.changes = value.changes.map((item) => ({ ...item, quantity: Number(item.quantity) }))
       value.createdAt = value.createdAt || new Date().toISOString()
-      delete value.promoter
-      delete value.route
+      if (!editing.value) value.cutId = openCut.value.id
       const usedNumbers = new Set(records.orders.filter((item) => item.id !== value.id).map((item) => Number(item.number)).filter(Number.isInteger))
       if (!editing.value) {
         let candidate = 1
@@ -238,12 +234,59 @@ async function remove(item) {
   const recordName = item.name || item.customer?.name || 'este registro'
   if (!window.confirm(`¿Eliminar ${singular[tab.value]} ${recordName}?`)) return
   try {
+    if (tab.value === 'orders' && item.cutId && records.cuts.find((cut) => cut.id === item.cutId)?.status === 'closed') throw new Error('Los pedidos de un corte cerrado no se pueden eliminar.')
     await auth.check()
     if (!authState.value.user) return
     await repository.remove(authState.value.user.id, tab.value, item.id)
     await loadRecords()
   }
   catch { error.value = 'No se pudo eliminar el registro.' }
+}
+
+function cutSummary(cut) {
+  return cut.status === 'closed' ? cut : summarizeCut(records.orders, cut.id)
+}
+
+function formatDateTime(value) {
+  return new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value))
+}
+
+async function startCut() {
+  if (busy.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    await auth.check()
+    if (!authState.value.user) throw new Error('La autorización ha vencido.')
+    if (openCut.value) throw new Error('Ya hay un corte abierto.')
+    await repository.put(authState.value.user.id, 'cuts', {
+      number: nextInternalNumber('cuts'),
+      status: 'open',
+      openedAt: new Date().toISOString(),
+    })
+    await loadRecords()
+  } catch (issue) { error.value = issue.message || 'No se pudo abrir el corte.' }
+  finally { busy.value = false }
+}
+
+async function finishCut(cut) {
+  if (busy.value || cut.status !== 'open') return
+  if (!window.confirm('¿Cerrar este corte? Las ventas incluidas quedarán bloqueadas para edición.')) return
+  busy.value = true
+  error.value = ''
+  try {
+    await auth.check()
+    if (!authState.value.user) throw new Error('La autorización ha vencido.')
+    const summary = summarizeCut(records.orders, cut.id)
+    await repository.put(authState.value.user.id, 'cuts', {
+      ...cut,
+      status: 'closed',
+      closedAt: new Date().toISOString(),
+      ...summary,
+    })
+    await loadRecords()
+  } catch (issue) { error.value = issue.message || 'No se pudo cerrar el corte.' }
+  finally { busy.value = false }
 }
 
 async function refresh() { if (auth) await auth.refresh() }
@@ -329,9 +372,9 @@ onUnmounted(() => {
           <q-btn flat label="Volver al inicio de sesión" @click="auth.logout()" />
         </div>
         <div v-else class="workspace">
-          <div class="workspace-top"><div><div class="eyebrow">ESPACIO DE TRABAJO</div><h1>{{ tab === 'printer' ? 'Impresora' : titles[tab] }}</h1><p class="muted greeting">{{ tab === 'printer' ? 'Conexión Bluetooth' : authState.user.name }}</p></div><q-btn v-if="tab !== 'printer'" color="primary" unelevated :icon="tab === 'settings' ? 'edit' : 'add'" :label="tab === 'settings' ? 'Editar configuración' : `Nuevo ${singular[tab]}`" @click="tab === 'settings' ? openEditor(records.settings[0] || null) : openEditor()" /></div>
+          <div class="workspace-top"><div><div class="eyebrow">ESPACIO DE TRABAJO</div><h1>{{ tab === 'printer' ? 'Impresora' : titles[tab] }}</h1><p class="muted greeting">{{ tab === 'printer' ? 'Conexión Bluetooth' : authState.user.name }}</p></div><q-btn v-if="tab !== 'printer' && tab !== 'cuts'" color="primary" unelevated icon="add" :label="`Nuevo ${singular[tab]}`" :disable="tab === 'orders' && !openCut" @click="openEditor()" /></div>
           <div v-if="authState.message" class="notice" role="status">{{ authState.message }}</div>
-          <q-tabs v-model="tab" align="left" active-color="primary" indicator-color="primary" class="workspace-tabs" dense><q-tab name="orders" icon="receipt_long" label="Pedidos" /><q-tab name="products" icon="inventory_2" label="Productos" /><q-tab name="customers" icon="people" label="Clientes" /><q-tab name="settings" icon="settings" label="Config." /><q-tab name="printer" icon="print" label="Impresora" /></q-tabs>
+          <q-tabs v-model="tab" align="left" active-color="primary" indicator-color="primary" class="workspace-tabs" dense><q-tab name="orders" icon="receipt_long" label="Pedidos" /><q-tab name="products" icon="inventory_2" label="Productos" /><q-tab name="customers" icon="people" label="Clientes" /><q-tab name="cuts" icon="point_of_sale" label="Cortes" /><q-tab name="printer" icon="print" label="Impresora" /></q-tabs>
           <div v-if="error && !dialog" class="notice error" role="alert">{{ error }}</div>
           <div v-if="tab === 'orders' && receiptNotice" class="notice" role="status">{{ receiptNotice }}</div>
           <section v-if="tab === 'printer'" class="printer-view">
@@ -344,15 +387,28 @@ onUnmounted(() => {
               <div v-else class="records-list"><article v-for="device in printerDevices" :key="device.address" class="record-row"><div class="record-main"><strong>{{ device.name }}</strong><div class="record-detail">{{ device.paired ? 'Emparejada' : 'Detectada' }}</div></div><q-btn color="primary" outline :label="printerState.address === device.address && printerState.connected ? 'Conectada' : 'Conectar'" :disable="printerBusy || (printerState.address === device.address && printerState.connected)" :loading="printerBusy && printerState.address === device.address" @click="connectToPrinter(device)" /></article></div>
             </template>
           </section>
+          <section v-if="tab === 'cuts'" class="cuts-panel">
+            <div v-if="openCut" class="cut-live-summary">
+              <div class="cut-state"><span class="state-indicator"></span><div><strong>Corte #{{ openCut.number }} abierto</strong><small>Desde {{ formatDateTime(openCut.openedAt) }}</small></div></div>
+              <div class="cut-metrics"><div><span>VENTAS</span><strong>{{ formatMoney(cutSummary(openCut).salesCents) }}</strong></div><div><span>GANANCIA</span><strong v-if="cutSummary(openCut).profitCents !== null">{{ formatMoney(cutSummary(openCut).profitCents) }}</strong><strong v-else class="missing-cost">Costo pendiente</strong></div><div><span>PEDIDOS</span><strong>{{ cutSummary(openCut).orderCount }}</strong></div></div>
+              <p v-if="cutSummary(openCut).missingCostLines" class="muted">Falta registrar el costo de {{ cutSummary(openCut).missingCostLines }} línea(s) vendida(s); actualiza el producto y registra una venta nueva para que su margen se incluya.</p>
+              <q-btn color="negative" outline icon="lock" label="Cerrar corte" :loading="busy" @click="finishCut(openCut)" />
+            </div>
+            <div v-else class="cut-start-row"><div><strong>No hay un corte abierto</strong><p class="muted">Abre un corte para empezar a registrar ventas.</p></div><q-btn color="primary" unelevated icon="lock_open" label="Abrir corte" :loading="busy" @click="startCut" /></div>
+            <div class="cut-history-heading"><h2>Historial de cortes</h2><span>{{ records.cuts.length }} cortes</span></div>
+            <div v-if="!sortedCuts.length" class="empty-state"><q-icon name="point_of_sale" size="30px" /><strong>Aún no hay cortes</strong></div>
+            <div v-else class="records-list"><article v-for="cut in sortedCuts" :key="cut.id" class="record-row cut-row"><div class="record-main"><div class="record-number">Corte #{{ cut.number }} · {{ cut.status === 'open' ? 'Abierto' : 'Cerrado' }}</div><strong>{{ formatDateTime(cut.openedAt) }}</strong><div v-if="cut.closedAt" class="record-detail">Cerrado {{ formatDateTime(cut.closedAt) }} · {{ cut.orderCount }} pedidos</div></div><div v-if="cut.status === 'closed'" class="cut-row-totals"><span>Ventas <strong>{{ formatMoney(cut.salesCents) }}</strong></span><span>Ganancia <strong v-if="cut.profitCents !== null">{{ formatMoney(cut.profitCents) }}</strong><strong v-else class="missing-cost">Pendiente</strong></span></div><span v-else class="state-pill state-open">En curso</span></article></div>
+          </section>
           <template v-else>
           <q-select v-if="tab === 'orders'" v-model="customerFilter" class="customer-filter" outlined dense clearable label="Filtrar por cliente" :options="customerOptions" emit-value map-options />
-          <div v-if="tab === 'settings'" class="settings-summary"><div><span>CEDIS</span><strong>{{ businessSettings.cedis || 'Sin configurar' }}</strong></div><div><span>Promotor</span><strong>{{ businessSettings.promoter || 'Sin configurar' }}</strong></div></div>
+          <div v-if="tab === 'orders' && !openCut" class="notice">Abre un corte para poder registrar ventas.</div>
+          <div v-if="tab === 'orders' && openCut" class="notice cut-inline-status">Corte #{{ openCut.number }} abierto · {{ formatMoney(cutSummary(openCut).salesCents) }} vendido</div>
           <div class="list-heading"><span>{{ titles[tab] }}</span><span>{{ visibleRecords.length }}{{ tab === 'orders' && customerFilter ? ` de ${records.orders.length}` : '' }} registros</span></div>
           <div v-if="!visibleRecords.length" class="empty-state"><q-icon :name="tab === 'orders' ? 'receipt_long' : tab === 'products' ? 'inventory_2' : 'people_outline'" size="30px" /><strong>{{ tab === 'orders' && customerFilter ? 'No hay pedidos de este cliente' : `Aún no hay ${titles[tab].toLowerCase()}` }}</strong></div>
           <div v-else class="records-list"><article v-for="item in visibleRecords" :key="item.id" class="record-row">
-            <div class="record-main"><div v-if="tab === 'orders'" class="record-number">Folio #{{ item.number }}</div><strong>{{ tab === 'orders' ? item.customer.name : item.name }}</strong><div v-if="tab === 'orders'" class="record-detail">{{ item.products.length }} productos</div></div>
+            <div class="record-main"><div v-if="tab === 'orders'" class="record-number">Folio #{{ item.number }}{{ item.cutId && records.cuts.find((cut) => cut.id === item.cutId)?.status === 'closed' ? ' · Corte cerrado' : '' }}</div><strong>{{ tab === 'orders' ? item.customer.name : item.name }}</strong><div v-if="tab === 'orders'" class="record-detail">{{ item.products.length }} productos</div><div v-if="tab === 'products'" class="record-detail">Costo {{ item.costCents == null ? 'pendiente' : formatMoney(item.costCents) }} · Ganancia {{ item.costCents == null ? 'pendiente' : formatMoney(item.priceCents - item.costCents) }}</div></div>
             <div v-if="tab === 'products' || tab === 'orders'" class="record-amount">{{ formatMoney(tab === 'products' ? item.priceCents : item.totalCents) }}</div>
-            <q-btn v-if="tab === 'orders'" flat round dense icon="visibility" aria-label="Ver ticket" @click="showReceiptPreview(item)"><q-tooltip>Ver ticket</q-tooltip></q-btn><q-btn v-if="tab === 'orders'" flat round dense icon="print" aria-label="Reimprimir ticket" @click="printOrder(item)"><q-tooltip>Reimprimir ticket</q-tooltip></q-btn><q-btn flat round dense icon="edit" aria-label="Editar" @click="openEditor(item)"><q-tooltip>Editar</q-tooltip></q-btn><q-btn flat round dense icon="delete_outline" aria-label="Eliminar" @click="remove(item)"><q-tooltip>Eliminar</q-tooltip></q-btn>
+            <q-btn v-if="tab === 'orders'" flat round dense icon="visibility" aria-label="Ver ticket" @click="showReceiptPreview(item)"><q-tooltip>Ver ticket</q-tooltip></q-btn><q-btn v-if="tab === 'orders'" flat round dense icon="print" aria-label="Reimprimir ticket" @click="printOrder(item)"><q-tooltip>Reimprimir ticket</q-tooltip></q-btn><q-btn v-if="!(tab === 'orders' && item.cutId && records.cuts.find((cut) => cut.id === item.cutId)?.status === 'closed')" flat round dense icon="edit" aria-label="Editar" @click="openEditor(item)"><q-tooltip>Editar</q-tooltip></q-btn><q-btn v-if="!(tab === 'orders' && item.cutId && records.cuts.find((cut) => cut.id === item.cutId)?.status === 'closed')" flat round dense icon="delete_outline" aria-label="Eliminar" @click="remove(item)"><q-tooltip>Eliminar</q-tooltip></q-btn>
           </article></div>
           <div v-if="tab === 'orders'" class="print-note"><q-icon name="print" size="18px" /> Configura la impresora en su apartado</div>
           </template>
@@ -362,9 +418,8 @@ onUnmounted(() => {
     <q-dialog v-model="dialog" persistent><q-card class="editor-card">
       <q-card-section class="editor-header"><div><div class="eyebrow">{{ editing ? 'EDITAR' : 'NUEVO' }}</div><h2>{{ singular[tab] }}</h2></div><q-btn flat round dense icon="close" aria-label="Cerrar" @click="dialog = false" /></q-card-section>
       <q-card-section class="editor-body"><q-form id="record-form" class="form-stack" @submit="save">
-        <template v-if="tab === 'products'"><q-input v-model="form.name" outlined label="Nombre" maxlength="150" required /><q-input v-model="form.price" outlined label="Precio" inputmode="decimal" required /></template>
+        <template v-if="tab === 'products'"><q-input v-model="form.name" outlined label="Nombre" maxlength="150" required /><q-input v-model="form.price" outlined label="Precio de venta" inputmode="decimal" required /><q-input v-model="form.cost" outlined label="Precio de costo" inputmode="decimal" required /></template>
         <template v-if="tab === 'customers'"><q-input v-model="form.name" outlined label="Nombre del cliente" maxlength="150" required /></template>
-        <template v-if="tab === 'settings'"><q-input v-model="form.cedis" outlined label="Código CEDIS" maxlength="40" required /><q-input v-model="form.promoter" outlined label="Número de promotor" maxlength="100" required /></template>
         <template v-if="tab === 'orders'">
           <q-select v-model="form.customerId" outlined label="Cliente" :options="customerOptions" emit-value map-options />
           <section class="order-section">
@@ -372,7 +427,7 @@ onUnmounted(() => {
             <q-select v-model="form.productId" outlined use-input input-debounce="0" clearable label="Buscar producto por nombre" :options="filteredProductOptions" emit-value map-options @filter="filterProducts" @update:model-value="addProduct('products', $event)">
               <template #option="scope"><q-item v-bind="scope.itemProps"><q-item-section><q-item-label>{{ scope.opt.label }}</q-item-label><q-item-label caption>{{ formatMoney(scope.opt.priceCents) }} por unidad</q-item-label></q-item-section></q-item></template>
             </q-select>
-          <div v-for="(item, index) in form.products" :key="item.id" class="order-line"><div><strong>{{ item.name }}</strong><div class="record-detail">{{ formatMoney(item.priceCents) }} por unidad</div></div><q-input v-model.number="item.quantity" outlined dense type="number" min="1" step="1" class="quantity" aria-label="Cantidad" /><q-btn flat round dense icon="close" aria-label="Quitar producto" @click="form.products.splice(index, 1)" /></div>
+          <div v-for="(item, index) in form.products" :key="item.id" class="order-line"><div><strong>{{ item.name }}</strong><div class="record-detail">Venta {{ formatMoney(item.priceCents) }} · Costo {{ item.costCents == null ? 'pendiente' : formatMoney(item.costCents) }}</div></div><q-input v-model.number="item.quantity" outlined dense type="number" min="1" step="1" class="quantity" aria-label="Cantidad" /><q-btn flat round dense icon="close" aria-label="Quitar producto" @click="form.products.splice(index, 1)" /></div>
           </section>
           <section class="order-section">
             <div class="order-section-heading"><h3>Productos de cambio</h3><span>{{ form.changes.length }} líneas</span></div>

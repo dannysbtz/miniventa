@@ -208,8 +208,6 @@ export function buildGeneralReceipt(order, printedAt = new Date()) {
   bytes.push(...command(27, 64), ...command(27, 77, 1), ...command(27, 51, 21), ...command(27, 97, 0))
   centered('MINIVENTA')
   centered('NOTA DE VENTA')
-  text(`CEDIS: ${order.cedis || ''}`)
-  text(`Promotor: ${order.promoterNumber || ''}`)
   text(`Folio: ${order.number || ''}`)
   text(`Fecha: ${date(order.createdAt || printedAt)}`)
   fixedLine('-'.repeat(WIDTH))

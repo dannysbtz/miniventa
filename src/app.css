@@ -15,10 +15,27 @@ h1 { margin: 8px 0 0; font-size: 30px; line-height: 1.2; }
 .workspace-tabs { margin-top: 32px; border-bottom: 1px solid #d5e0da; }
 .workspace-tabs .q-tab { min-height: 58px; padding: 0 20px; }
 .customer-filter { max-width: 420px; margin: 20px 0 0; }
-.settings-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; max-width: 620px; margin: 28px 0 10px; }
-.settings-summary > div { display: flex; flex-direction: column; gap: 6px; border: 1px solid #dce5df; border-radius: 6px; padding: 16px; background: #fff; }
-.settings-summary span { color: #71817a; font-size: 11px; font-weight: 700; }
-.settings-summary strong { overflow-wrap: anywhere; }
+.cuts-panel { display: flex; flex-direction: column; gap: 24px; padding-top: 24px; }
+.cut-live-summary { display: flex; flex-direction: column; gap: 18px; padding: 20px; border: 1px solid #b8d5c7; border-left: 4px solid #21634f; border-radius: 6px; background: #f5faf6; }
+.cut-state { display: flex; align-items: center; gap: 11px; }
+.cut-state > div { display: flex; flex-direction: column; gap: 3px; }
+.cut-state small { color: #687a73; }
+.state-indicator { width: 10px; height: 10px; border-radius: 50%; background: #328562; box-shadow: 0 0 0 4px #32856220; }
+.cut-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.cut-metrics > div { display: flex; min-width: 0; flex-direction: column; gap: 6px; }
+.cut-metrics span { color: #71817a; font-size: 10px; font-weight: 700; }
+.cut-metrics strong { font-size: 20px; overflow-wrap: anywhere; }
+.missing-cost { color: #9c612a; font-size: 14px !important; }
+.cut-start-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid #dce5df; border-radius: 6px; background: #fff; }
+.cut-start-row p { margin: 5px 0 0; font-size: 13px; }
+.cut-history-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: -12px; }
+.cut-history-heading h2 { margin: 0; font-size: 18px; }
+.cut-history-heading span { color: #71817a; font-size: 12px; }
+.cut-row-totals { display: flex; flex-direction: column; gap: 4px; min-width: 120px; text-align: right; font-size: 12px; }
+.cut-row-totals span { display: flex; justify-content: space-between; gap: 10px; color: #71817a; }
+.cut-row-totals strong { color: #202c29; }
+.state-open { color: #21634f; background: #e8f4ec; }
+.cut-inline-status { margin-top: 16px; color: #276449; background: #edf7f0; }
 .printer-view { display: flex; flex-direction: column; gap: 24px; padding-top: 24px; }
 .printer-connection { display: flex; align-items: center; gap: 14px; padding: 18px; border: 1px solid #dce5df; border-radius: 6px; background: #fff; }
 .printer-connection > div { flex: 1; min-width: 0; }
@@ -61,4 +78,4 @@ h1 { margin: 8px 0 0; font-size: 30px; line-height: 1.2; }
 .order-line > div:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .quantity { width: 75px; }
 .order-total { display: flex; justify-content: space-between; font-size: 17px; }
-@media (max-width: 600px) { .toolbar { padding: 0 12px; gap: 8px; } .brand { font-size: 17px; } .toolbar .q-badge { font-size: 10px; } .workspace { padding: 28px 16px 60px; } .workspace-top { align-items: flex-start; } .workspace-top .q-btn { font-size: 12px; } .workspace-tabs .q-tab { padding: 0 5px; flex: 1; font-size: 11px; } .access-panel { padding-top: 70px; } .record-row { gap: 5px; } .printer-actions { align-items: flex-start; flex-direction: column; } .printer-actions .q-btn { align-self: stretch; } .printer-connection { align-items: flex-start; flex-wrap: wrap; padding: 14px; } .printer-connection .q-btn { margin-left: auto; } .settings-summary { grid-template-columns: 1fr; } }
+@media (max-width: 600px) { .toolbar { padding: 0 12px; gap: 8px; } .brand { font-size: 17px; } .toolbar .q-badge { font-size: 10px; } .workspace { padding: 28px 16px 60px; } .workspace-top { align-items: flex-start; } .workspace-top .q-btn { font-size: 12px; } .workspace-tabs .q-tab { padding: 0 5px; flex: 1; font-size: 11px; } .access-panel { padding-top: 70px; } .record-row { gap: 5px; } .printer-actions { align-items: flex-start; flex-direction: column; } .printer-actions .q-btn { align-self: stretch; } .printer-connection { align-items: flex-start; flex-wrap: wrap; padding: 14px; } .printer-connection .q-btn { margin-left: auto; } .cut-metrics { gap: 8px; } .cut-metrics strong { font-size: 16px; } .cut-start-row { align-items: flex-start; flex-direction: column; } .cut-start-row .q-btn { align-self: stretch; } .cut-row { align-items: flex-start; flex-wrap: wrap; } .cut-row-totals { width: 100%; padding-left: 0; text-align: left; } }

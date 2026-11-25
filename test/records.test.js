@@ -2,6 +2,7 @@ import 'fake-indexeddb/auto'
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { validateRecord } from '../src/domain/records.js'
+import { summarizeCut } from '../src/domain/cuts.js'
 import { createRepository } from '../src/data/repository.js'
 
 test('valida entidades y calcula total de pedido desde líneas', () => {
@@ -15,6 +16,36 @@ test('valida entidades y calcula total de pedido desde líneas', () => {
 test('el perfil general permite clientes sin ubicación, ruta ni días de visita', () => {
   const customer = validateRecord('customers', { number: '1', name: 'Ana' })
   assert.deepEqual(customer, { number: '1', name: 'Ana' })
+})
+
+test('producto valida costo y pedido conserva el costo unitario como instantánea', () => {
+  const product = validateRecord('products', { number: '1', name: 'Pan', priceCents: 500, costCents: 300 })
+  assert.equal(product.costCents, 300)
+  assert.throws(() => validateRecord('products', { number: '2', name: 'Pan', priceCents: 500, costCents: -1 }))
+  const order = validateRecord('orders', { number: '1', customer: { id: 'c1', name: 'Ana' }, products: [{ id: 'p1', name: 'Pan', priceCents: 500, costCents: 300, quantity: 2 }], changes: [] })
+  assert.equal(order.products[0].costCents, 300)
+})
+
+test('corte calcula venta y ganancia y avisa si faltan costos', () => {
+  const orders = [
+    { cutId: 'cut-1', totalCents: 1000, products: [{ costCents: 300, quantity: 2 }] },
+    { cutId: 'cut-1', totalCents: 500, products: [{ costCents: 200, quantity: 1 }] },
+    { cutId: 'cut-2', totalCents: 900, products: [{ costCents: 100, quantity: 1 }] },
+  ]
+  assert.deepEqual(summarizeCut(orders, 'cut-1'), { orderCount: 2, salesCents: 1500, costCents: 800, profitCents: 700, missingCostLines: 0 })
+  orders[0].products[0].costCents = null
+  assert.deepEqual(summarizeCut(orders, 'cut-1'), { orderCount: 2, salesCents: 1500, costCents: null, profitCents: null, missingCostLines: 1 })
+})
+
+test('corte abierto y resumen cerrado se guardan por usuario', async () => {
+  const repository = await createRepository()
+  const opened = await repository.put('cortes-user', 'cuts', { number: '1', status: 'open', openedAt: '2026-01-02T10:00:00.000Z' })
+  await repository.put('cortes-user', 'cuts', { ...opened, status: 'closed', closedAt: '2026-01-02T12:00:00.000Z', orderCount: 2, salesCents: 1500, costCents: 800, profitCents: 700, missingCostLines: 0 })
+  const [closed] = await repository.list('cortes-user', 'cuts')
+  assert.equal(closed.status, 'closed')
+  assert.equal(closed.salesCents, 1500)
+  assert.equal(closed.profitCents, 700)
+  assert.equal((await repository.list('another-user', 'cuts')).length, 0)
 })
 
 test('cambios son instantáneas de productos validadas y no modifican el total', () => {

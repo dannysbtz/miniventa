@@ -21,14 +21,12 @@ const sample = {
 test('ticket general muestra CEDIS, promotor, cliente, cantidades e importe total sin contenido de marca anterior', () => {
   const preview = receiptPreview(buildGeneralReceipt(sample, new Date('2026-01-02T12:00:00Z')))
   assert.match(preview, /MINIVENTA/)
-  assert.match(preview, /CEDIS: 7656/)
-  assert.match(preview, /Promotor: 37669/)
   assert.match(preview, /Folio: N-104/)
   assert.match(preview, /Cliente: Minisuper Patty/)
   assert.match(preview, /2 x Cafe molido/)
   assert.match(preview, /\$12\.50 c\/u\s+\$25\.00/)
   assert.match(preview, /TOTAL\s+\$30\.00/)
-  assert.doesNotMatch(preview, /AUTOVENTA|Comercializadora|CAMBIO FISICO|DESCUENTOS|Lala|Ruta Preventa/)
+  assert.doesNotMatch(preview, /AUTOVENTA|Comercializadora|CAMBIO FISICO|DESCUENTOS|Lala|Ruta Preventa|CEDIS|Promotor/)
 })
 
 test('genera ticket ESC/POS con venta, cambios informativos y total', () => {
