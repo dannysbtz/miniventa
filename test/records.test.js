@@ -12,6 +12,40 @@ test('valida entidades y calcula total de pedido desde líneas', () => {
   assert.equal(order.totalCents, 30)
 })
 
+test('datos de muestra integran productos, clientes y pedidos sin tocar cuentas reales', async () => {
+  const repository = await createRepository()
+  const user = 'fixture-verificacion-main'
+  const route = await repository.put(user, 'routes', { code: 'R-01', name: 'Centro' })
+  const bread = await repository.put(user, 'products', { number: '1', name: 'Pan de caja', priceCents: 3000 })
+  const milk = await repository.put(user, 'products', { number: '2', name: 'Leche entera', priceCents: 2500 })
+  const firstCustomer = await repository.put(user, 'customers', {
+    number: '1', name: 'Abarrotes El Sol', location: 'Calle Uno 10',
+    route: { id: route.id, code: route.code, name: route.name }, visitDays: ['L', 'J'],
+  })
+  const secondCustomer = await repository.put(user, 'customers', {
+    number: '2', name: 'Tienda La Esquina', location: 'Avenida Dos 25',
+    route: { id: route.id, code: route.code, name: route.name }, visitDays: ['M', 'V'],
+  })
+  await repository.put(user, 'orders', {
+    number: '1', customer: firstCustomer,
+    products: [{ id: bread.id, number: bread.number, name: bread.name, priceCents: bread.priceCents, quantity: 3 }, { id: milk.id, number: milk.number, name: milk.name, priceCents: milk.priceCents, quantity: 2 }],
+    changes: [],
+  })
+  await repository.put(user, 'orders', {
+    number: '2', customer: secondCustomer,
+    products: [{ id: milk.id, number: milk.number, name: milk.name, priceCents: milk.priceCents, quantity: 1 }],
+    changes: [],
+  })
+
+  assert.equal((await repository.list(user, 'routes')).length, 1)
+  assert.equal((await repository.list(user, 'products')).length, 2)
+  assert.equal((await repository.list(user, 'customers')).length, 2)
+  const orders = await repository.list(user, 'orders')
+  assert.equal(orders.length, 2)
+  assert.equal(orders.reduce((sum, order) => sum + order.totalCents, 0), 16500)
+  assert.equal((await repository.list('other-fixture-user', 'orders')).length, 0)
+})
+
 test('cambios son instantáneas de productos validadas y no modifican el total', () => {
   const order = { number: '1', customer: { id: '1', name: 'Ana' }, products: [{ id: '2', name: 'Pan', priceCents: 10, quantity: 3 }], changes: [{ id: '3', name: 'Leche', priceCents: 200, quantity: 2 }] }
   const validated = validateRecord('orders', order)
