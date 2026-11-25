@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { createAuth } from './auth/controller.js'
 import { apiBase, sessionStorage } from './auth/platform.js'
 import { validateOfflinePublicKey } from './auth/offline.js'
@@ -14,6 +14,9 @@ const credentials = reactive({ username: '', password: '' })
 const showPassword = ref(false)
 const tab = ref('orders')
 const customerFilter = ref(null)
+const productSearch = ref('')
+const recordLimit = ref(30)
+const cutLimit = ref(30)
 const busy = ref(false)
 const error = ref('')
 const dialog = ref(false)
@@ -63,9 +66,16 @@ const sortedCuts = computed(() => [...records.cuts].sort((a, b) => b.openedAt.lo
 const receiptBranding = computed(() => records.receiptBranding[0] || { title: 'MINIVENTA', logoDataUrl: '' })
 const visibleRecords = computed(() => {
   const current = records[tab.value] || []
-  if (tab.value !== 'orders' || !customerFilter.value) return current
-  return current.filter((item) => item.customer.id === customerFilter.value)
+  let filtered = current
+  if (tab.value === 'orders' && customerFilter.value) filtered = filtered.filter((item) => item.customer.id === customerFilter.value)
+  if (tab.value === 'products' && productSearch.value.trim()) {
+    const query = productSearch.value.trim().toLocaleLowerCase()
+    filtered = filtered.filter((item) => `${item.name} ${item.number}`.toLocaleLowerCase().includes(query))
+  }
+  return filtered
 })
+const displayedRecords = computed(() => visibleRecords.value.slice(0, recordLimit.value))
+const displayedCuts = computed(() => sortedCuts.value.slice(0, cutLimit.value))
 const productOptions = computed(() => {
   const saved = [...(form.value.products || []), ...(form.value.changes || [])]
   const products = new Map([...saved, ...records.products].map((item) => [item.id, item]))
@@ -96,10 +106,24 @@ watch(() => authState.value.user?.id, (id) => {
   if (id) loadRecords()
 })
 
+watch([tab, customerFilter, productSearch], () => { recordLimit.value = 30 })
 watch(tab, (value) => {
+  cutLimit.value = 30
   if (value === 'printer') loadPrinters()
   else if (scanningPrinter.value) stopActivePrinterScan()
 })
+
+async function loadMoreRecords(_index, done) {
+  recordLimit.value += 30
+  await nextTick()
+  done(recordLimit.value >= visibleRecords.value.length)
+}
+
+async function loadMoreCuts(_index, done) {
+  cutLimit.value += 30
+  await nextTick()
+  done(cutLimit.value >= sortedCuts.value.length)
+}
 
 async function login() {
   if (!credentials.username.trim() || !credentials.password) { error.value = 'Introduce usuario y contraseña.'; return }
@@ -502,7 +526,7 @@ onUnmounted(() => {
             <div v-else class="cut-start-row"><div><strong>No hay un corte abierto</strong><p class="muted">Abre un corte para empezar a registrar ventas.</p></div><q-btn color="primary" unelevated icon="lock_open" label="Abrir corte" :loading="busy" @click="startCut" /></div>
             <div class="cut-history-heading"><h2>Historial de cortes</h2><span>{{ records.cuts.length }} cortes</span></div>
             <div v-if="!sortedCuts.length" class="empty-state"><q-icon name="point_of_sale" size="30px" /><strong>Aún no hay cortes</strong></div>
-            <div v-else class="records-list"><article v-for="cut in sortedCuts" :key="cut.id" class="record-row cut-row"><div class="record-main"><div class="record-number">Corte #{{ cut.number }} · {{ cut.status === 'open' ? 'Abierto' : 'Cerrado' }}</div><strong>{{ formatDateTime(cut.openedAt) }}</strong><div v-if="cut.closedAt" class="record-detail">Cerrado {{ formatDateTime(cut.closedAt) }} · {{ cut.orderCount }} pedidos</div></div><div v-if="cut.status === 'closed'" class="cut-row-totals"><span>Ventas <strong>{{ formatMoney(cut.salesCents) }}</strong></span><span>Ganancia <strong v-if="cut.profitCents !== null">{{ formatMoney(cut.profitCents) }}</strong><strong v-else class="missing-cost">Pendiente</strong></span></div><span v-else class="state-pill state-open">En curso</span></article></div>
+            <q-infinite-scroll v-else :key="`cut-history-${sortedCuts.length}`" :offset="240" @load="loadMoreCuts"><div class="records-list"><article v-for="cut in displayedCuts" :key="cut.id" class="record-row cut-row"><div class="record-main"><div class="record-number">Corte #{{ cut.number }} · {{ cut.status === 'open' ? 'Abierto' : 'Cerrado' }}</div><strong>{{ formatDateTime(cut.openedAt) }}</strong><div v-if="cut.closedAt" class="record-detail">Cerrado {{ formatDateTime(cut.closedAt) }} · {{ cut.orderCount }} pedidos</div></div><div v-if="cut.status === 'closed'" class="cut-row-totals"><span>Ventas <strong>{{ formatMoney(cut.salesCents) }}</strong></span><span>Ganancia <strong v-if="cut.profitCents !== null">{{ formatMoney(cut.profitCents) }}</strong><strong v-else class="missing-cost">Pendiente</strong></span></div><span v-else class="state-pill state-open">En curso</span></article></div><template #loading><div class="scroll-loader"><q-spinner-dots color="primary" size="28px" /><span>Cargando más cortes…</span></div></template></q-infinite-scroll>
           </section>
           <section v-else-if="tab === 'receiptBranding'" class="branding-panel">
             <div class="branding-preview-label">VISTA PREVIA DEL ENCABEZADO</div>
@@ -515,15 +539,16 @@ onUnmounted(() => {
           </section>
           <template v-else>
           <q-select v-if="tab === 'orders'" v-model="customerFilter" class="customer-filter" outlined dense clearable label="Filtrar por cliente" :options="customerOptions" emit-value map-options />
+          <q-input v-if="tab === 'products'" v-model="productSearch" class="product-search" outlined dense clearable debounce="150" label="Buscar producto" placeholder="Nombre o número"><template #prepend><q-icon name="search" /></template></q-input>
           <div v-if="tab === 'orders' && !openCut" class="notice">Abre un corte para poder registrar ventas.</div>
           <div v-if="tab === 'orders' && openCut" class="notice cut-inline-status">Corte #{{ openCut.number }} abierto · {{ formatMoney(cutSummary(openCut).salesCents) }} vendido</div>
-          <div class="list-heading"><span>{{ titles[tab] }}</span><span>{{ visibleRecords.length }}{{ tab === 'orders' && customerFilter ? ` de ${records.orders.length}` : '' }} registros</span></div>
+          <div class="list-heading"><span>{{ titles[tab] }}</span><span>{{ displayedRecords.length }} de {{ visibleRecords.length }}{{ tab === 'orders' && customerFilter ? ` · ${records.orders.length} pedidos` : '' }}</span></div>
           <div v-if="!visibleRecords.length" class="empty-state"><q-icon :name="tab === 'orders' ? 'receipt_long' : tab === 'products' ? 'inventory_2' : 'people_outline'" size="30px" /><strong>{{ tab === 'orders' && customerFilter ? 'No hay pedidos de este cliente' : `Aún no hay ${(titles[tab] || 'registros').toLowerCase()}` }}</strong></div>
-          <div v-else class="records-list"><article v-for="item in visibleRecords" :key="item.id" class="record-row">
+          <q-infinite-scroll v-else :key="`${tab}-${customerFilter || ''}-${productSearch}-${visibleRecords.length}`" :offset="240" @load="loadMoreRecords"><div class="records-list"><article v-for="item in displayedRecords" :key="item.id" class="record-row">
             <div class="record-main"><div v-if="tab === 'orders'" class="record-number">Folio #{{ item.number }}{{ item.cutId && records.cuts.find((cut) => cut.id === item.cutId)?.status === 'closed' ? ' · Corte cerrado' : '' }}</div><strong>{{ tab === 'orders' ? item.customer.name : item.name }}</strong><div v-if="tab === 'orders'" class="record-detail">{{ item.products.length }} productos</div><div v-if="tab === 'products'" class="record-detail">Costo {{ item.costCents == null ? 'pendiente' : formatMoney(item.costCents) }} · Ganancia {{ item.costCents == null ? 'pendiente' : formatMoney(item.priceCents - item.costCents) }}</div></div>
             <div v-if="tab === 'products' || tab === 'orders'" class="record-amount">{{ formatMoney(tab === 'products' ? item.priceCents : item.totalCents) }}</div>
             <q-btn v-if="tab === 'orders'" flat round dense icon="visibility" aria-label="Ver ticket" @click="showReceiptPreview(item)"><q-tooltip>Ver ticket</q-tooltip></q-btn><q-btn v-if="tab === 'orders'" flat round dense icon="print" aria-label="Reimprimir ticket" @click="printOrder(item)"><q-tooltip>Reimprimir ticket</q-tooltip></q-btn><q-btn v-if="!(tab === 'orders' && item.cutId && records.cuts.find((cut) => cut.id === item.cutId)?.status === 'closed')" flat round dense icon="edit" aria-label="Editar" @click="openEditor(item)"><q-tooltip>Editar</q-tooltip></q-btn><q-btn v-if="!(tab === 'orders' && item.cutId && records.cuts.find((cut) => cut.id === item.cutId)?.status === 'closed')" flat round dense icon="delete_outline" aria-label="Eliminar" @click="remove(item)"><q-tooltip>Eliminar</q-tooltip></q-btn>
-          </article></div>
+          </article></div><template #loading><div class="scroll-loader"><q-spinner-dots color="primary" size="28px" /><span>Cargando más registros…</span></div></template></q-infinite-scroll>
           <div v-if="tab === 'orders'" class="print-note"><q-icon name="print" size="18px" /> Configura la impresora en su apartado</div>
           </template>
         </div>

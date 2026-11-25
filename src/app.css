@@ -16,6 +16,8 @@ h1 { margin: 8px 0 0; font-size: 30px; line-height: 1.2; }
 .workspace-tabs { margin-top: 32px; border-bottom: 1px solid #d5e0da; }
 .workspace-tabs .q-tab { min-height: 58px; padding: 0 20px; }
 .customer-filter { max-width: 420px; margin: 20px 0 0; }
+.product-search { max-width: 480px; margin: 20px 0 0; }
+.scroll-loader { display: flex; justify-content: center; align-items: center; gap: 8px; min-height: 48px; color: #71817a; font-size: 12px; }
 .cuts-panel { display: flex; flex-direction: column; gap: 24px; padding-top: 24px; }
 .cut-live-summary { display: flex; flex-direction: column; gap: 18px; padding: 20px; border: 1px solid #b8d5c7; border-left: 4px solid #21634f; border-radius: 6px; background: #f5faf6; }
 .cut-state { display: flex; align-items: center; gap: 11px; }
