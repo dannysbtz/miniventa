@@ -282,7 +282,7 @@ onUnmounted(() => {
   <q-layout view="hHh lpR fFf">
     <q-header class="app-header">
       <q-toolbar class="toolbar">
-        <q-icon name="storefront" size="25px" />
+        <img class="brand-mark" src="/miniventa-mark.svg" alt="" />
         <q-toolbar-title class="brand">Miniventa</q-toolbar-title>
         <q-badge :color="printerState.connected ? 'positive' : 'grey-7'" text-color="white" :label="printerState.connected ? 'Imp. conectada' : printerState.supported ? 'Imp. desconectada' : 'Sin Bluetooth'" />
         <template v-if="authState.user">
