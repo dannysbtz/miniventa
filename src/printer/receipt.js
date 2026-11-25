@@ -201,12 +201,17 @@ export function buildGeneralReceipt(order, printedAt = new Date()) {
   }
   const centered = (value) => {
     const line = printerText(value).slice(0, receiptWidth)
-    bytes.push(...new TextEncoder().encode(`${' '.repeat(Math.max(0, Math.floor((receiptWidth - line.length) / 2)))}${line}`), 10)
+    bytes.push(...command(27, 97, 1), ...new TextEncoder().encode(line), 10, ...command(27, 97, 0))
   }
   const emphasizedCenter = (value) => {
-    bytes.push(...command(27, 69, 1), ...command(29, 33, 16))
+    bytes.push(...command(27, 97, 1), ...command(27, 69, 1), ...command(29, 33, 16))
     centered(value)
-    bytes.push(...command(29, 33, 0), ...command(27, 69, 0))
+    bytes.push(...command(29, 33, 0), ...command(27, 69, 0), ...command(27, 97, 0))
+  }
+  const largeCentered = (value) => {
+    bytes.push(...command(27, 97, 1), ...command(27, 69, 1), ...command(29, 33, 17))
+    bytes.push(...new TextEncoder().encode(printerText(value)), 10)
+    bytes.push(...command(29, 33, 0), ...command(27, 69, 0), ...command(27, 97, 0))
   }
   const money = (cents) => `$${formatMoney(cents)}`
   const date = (value) => new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
@@ -224,7 +229,8 @@ export function buildGeneralReceipt(order, printedAt = new Date()) {
     fixedLine(`${money(item.priceCents)} c/u${money(item.priceCents * item.quantity).padStart(receiptWidth - money(item.priceCents).length - 6)}`)
   }
   fixedLine('-'.repeat(receiptWidth))
-  fixedLine(`TOTAL${money(order.totalCents).padStart(receiptWidth - 5)}`)
+  centered('TOTAL A PAGAR')
+  largeCentered(money(order.totalCents))
   bytes.push(...command(27, 69, 1))
   centered('Gracias por su compra')
   bytes.push(...command(27, 69, 0))

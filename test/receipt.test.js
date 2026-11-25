@@ -21,11 +21,12 @@ const sample = {
 test('ticket general muestra CEDIS, promotor, cliente, cantidades e importe total sin contenido de marca anterior', () => {
   const preview = receiptPreview(buildGeneralReceipt(sample, new Date('2026-01-02T12:00:00Z')))
   assert.match(preview, /MINIVENTA/)
+  assert.equal(preview.split('\n')[0], 'MINIVENTA', 'el nombre queda centrado sin margen manual desplazado')
   assert.match(preview, /Folio: N-104/)
   assert.match(preview, /Cliente: Minisuper Patty/)
   assert.match(preview, /2 x Cafe molido/)
   assert.match(preview, /\$12\.50 c\/u\s+\$25\.00/)
-  assert.match(preview, /TOTAL\s+\$30\.00/)
+  assert.match(preview, /TOTAL A PAGAR\n\$30\.00/)
   assert.match(preview, /Gracias por su compra/)
   assert.match(preview, /Agradecemos su preferencia/)
   assert.match(preview, /Conserve esta nota para\ncualquier aclaracion/)
@@ -34,6 +35,8 @@ test('ticket general muestra CEDIS, promotor, cliente, cantidades e importe tota
   const raw = new TextDecoder().decode(buildGeneralReceipt(sample, new Date('2026-01-02T12:00:00Z')))
   assert.ok(raw.includes('\x1BM\x00'), 'utiliza fuente estándar A para texto más grande')
   assert.ok(raw.includes('\x1B3\x1C'), 'usa mayor separación entre líneas')
+  assert.ok(raw.includes('\x1Ba\x01'), 'centra el encabezado usando la alineación nativa ESC/POS')
+  assert.ok(raw.includes('\x1D!\x11$30.00'), 'imprime el importe total en doble ancho y doble altura')
   assert.doesNotMatch(preview, /AUTOVENTA|Comercializadora|CAMBIO FISICO|DESCUENTOS|Lala|Ruta Preventa|CEDIS|Promotor/)
 })
 
