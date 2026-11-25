@@ -37,6 +37,7 @@ test('ticket general muestra CEDIS, promotor, cliente, cantidades e importe tota
   assert.ok(raw.includes('\x1B3\x1C'), 'usa mayor separación entre líneas')
   assert.ok(raw.includes('\x1Ba\x01'), 'centra el encabezado usando la alineación nativa ESC/POS')
   assert.ok(raw.includes('\x1D!\x11$30.00'), 'imprime el importe total en doble ancho y doble altura')
+  assert.ok(raw.includes('\x1Ba\x01Conserve esta nota para\n\x1Ba\x00\x1Ba\x01cualquier aclaracion.'), 'centra cada renglón del mensaje largo del cierre')
   assert.doesNotMatch(preview, /AUTOVENTA|Comercializadora|CAMBIO FISICO|DESCUENTOS|Lala|Ruta Preventa|CEDIS|Promotor/)
 })
 

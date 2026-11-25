@@ -203,6 +203,9 @@ export function buildGeneralReceipt(order, printedAt = new Date(), branding = {}
     const line = printerText(value).slice(0, receiptWidth)
     bytes.push(...command(27, 97, 1), ...new TextEncoder().encode(line), 10, ...command(27, 97, 0))
   }
+  const centeredWrapped = (value) => {
+    for (const line of wrap(value, receiptWidth)) centered(line)
+  }
   const emphasizedCenter = (value) => {
     bytes.push(...command(27, 97, 1), ...command(27, 69, 1), ...command(29, 33, 16))
     centered(value)
@@ -239,7 +242,7 @@ export function buildGeneralReceipt(order, printedAt = new Date(), branding = {}
   centered('Gracias por su compra')
   bytes.push(...command(27, 69, 0))
   centered('Agradecemos su preferencia.')
-  text('Conserve esta nota para cualquier aclaracion.')
+  centeredWrapped('Conserve esta nota para cualquier aclaracion.')
   centered('Esperamos atenderle pronto.')
   bytes.push(...command(27, 50), 10, 10, 10, ...command(29, 86, 1))
   return Uint8Array.from(bytes)
