@@ -24,6 +24,7 @@ const receiptPreviewNumber = ref('')
 const editing = ref(null)
 const form = ref({})
 const filteredProductOptions = ref([])
+const filteredCustomerOptions = ref([])
 const printerState = ref({ supported: false, connected: false, name: null, address: null })
 const printerDevices = ref([])
 const scanningPrinter = ref(false)
@@ -109,7 +110,17 @@ function openEditor(item = null) {
     ? { ...JSON.parse(JSON.stringify(item)), customerId: item.customer.id, productId: null, changeId: null }
     : { customerId: null, productId: null, changeId: null, products: [], changes: [] }
   filteredProductOptions.value = productOptions.value
+  filteredCustomerOptions.value = customerOptions.value
   dialog.value = true
+}
+
+function filterCustomers(value, update) {
+  const search = String(value ?? '').trim().toLocaleLowerCase()
+  update(() => {
+    filteredCustomerOptions.value = search
+      ? customerOptions.value.filter((item) => item.label.toLocaleLowerCase().includes(search))
+      : customerOptions.value
+  })
 }
 
 function filterProducts(value, update) {
@@ -130,6 +141,13 @@ function addProduct(type, productId) {
   if (existing) existing.quantity++
   else form.value[type].push({ id: product.id, number: product.number, name: product.name, priceCents: product.priceCents, quantity: 1 })
   form.value[field] = null
+}
+
+function adjustQuantity(type, item, amount) {
+  const line = form.value[type].find((entry) => entry.id === item.id)
+  if (!line) return
+  const quantity = line.quantity + amount
+  if (quantity >= 1) line.quantity = quantity
 }
 
 function addPrinter(device) {
@@ -365,34 +383,39 @@ onUnmounted(() => {
         </div>
       </q-page>
     </q-page-container>
-    <q-dialog v-model="dialog" persistent><q-card class="editor-card">
+    <q-dialog v-model="dialog" persistent><q-card :class="['editor-card', { 'order-editor-card': tab === 'orders' }]">
       <q-card-section class="editor-header"><div><div class="eyebrow">{{ editing ? 'EDITAR' : 'NUEVO' }}</div><h2>{{ singular[tab] }}</h2></div><q-btn flat round dense icon="close" aria-label="Cerrar" @click="dialog = false" /></q-card-section>
-      <q-card-section class="editor-body"><q-form id="record-form" class="form-stack" @submit="save">
+      <q-card-section class="editor-body"><q-form id="record-form" :class="['form-stack', { 'order-editor-form': tab === 'orders' }]" @submit="save">
         <q-input v-if="tab === 'products' || tab === 'customers'" v-model="form.number" outlined label="Número" maxlength="40" required />
         <template v-if="tab === 'products'"><q-input v-model="form.name" outlined label="Nombre" maxlength="150" required /><q-input v-model="form.price" outlined label="Precio" inputmode="decimal" required /></template>
         <template v-if="tab === 'customers'"><q-input v-model="form.name" outlined label="Nombre" maxlength="150" required /><q-input v-model="form.location" outlined label="Ubicación" maxlength="150" required /><q-select v-model="form.routeId" outlined label="Ruta" :options="routeOptions" emit-value map-options required /><q-select v-model="form.visitDays" outlined multiple use-chips label="Días de visita" :options="['L', 'M', 'Mi', 'J', 'V']" /></template>
         <template v-if="tab === 'routes'"><q-input v-model="form.code" outlined label="Código de ruta" maxlength="40" required /><q-input v-model="form.name" outlined label="Nombre de ruta" maxlength="150" required /></template>
         <template v-if="tab === 'settings'"><q-input v-model="form.cedis" outlined label="Código CEDIS" maxlength="40" required /><q-input v-model="form.promoter" outlined label="Número de promotor" maxlength="100" required /></template>
         <template v-if="tab === 'orders'">
-          <q-select v-model="form.customerId" outlined label="Cliente" :options="customerOptions" emit-value map-options />
-          <section class="order-section">
-            <div class="order-section-heading"><h3>Productos de venta</h3><span>{{ form.products.length }} líneas</span></div>
-            <q-select v-model="form.productId" outlined use-input input-debounce="0" clearable label="Buscar producto por nombre" :options="filteredProductOptions" emit-value map-options @filter="filterProducts" @update:model-value="addProduct('products', $event)">
+          <div class="order-client-select"><span class="order-step">PASO 1</span><q-select v-model="form.customerId" outlined use-input fill-input hide-selected clearable input-debounce="0" label="Buscar cliente por nombre o número" :options="filteredCustomerOptions" emit-value map-options @filter="filterCustomers" required><template #option="scope"><q-item v-bind="scope.itemProps"><q-item-section><q-item-label>{{ scope.opt.label }}</q-item-label></q-item-section></q-item></template><template #no-option><q-item><q-item-section class="text-grey">No hay clientes con ese nombre o número</q-item-section></q-item></template></q-select></div>
+          <div class="order-builder-layout">
+            <section class="order-product-picker"><span class="order-step">PASO 2</span><h3>Agregar productos</h3>
+              <q-select v-model="form.productId" outlined use-input input-debounce="0" clearable label="Buscar producto por nombre" :options="filteredProductOptions" emit-value map-options @filter="filterProducts" @update:model-value="addProduct('products', $event)">
+                <template #option="scope"><q-item v-bind="scope.itemProps"><q-item-section><q-item-label>{{ scope.opt.label }}</q-item-label><q-item-label caption>{{ scope.opt.number ? `#${scope.opt.number} · ` : '' }}{{ formatMoney(scope.opt.priceCents) }} por unidad</q-item-label></q-item-section></q-item></template>
+                <template #no-option><q-item><q-item-section class="text-grey">No se encontraron productos</q-item-section></q-item></template>
+              </q-select>
+              <p class="picker-hint">Selecciona un producto para agregarlo; vuelve a elegirlo para aumentar la cantidad.</p>
+            </section>
+            <section class="order-cart"><div class="order-section-heading"><h3>Tu pedido</h3><span>{{ form.products.length }} productos</span></div>
+              <div v-if="!form.products.length" class="cart-empty"><q-icon name="add_shopping_cart" size="28px" /><span>Busca y agrega el primer producto</span></div>
+              <article v-for="item in form.products" :key="item.id" class="order-cart-line"><div class="cart-line-copy"><strong>{{ item.name }}</strong><span>#{{ item.number }} · {{ formatMoney(item.priceCents) }} c/u · {{ formatMoney(item.priceCents * item.quantity) }}</span></div><div class="quantity-control"><q-btn flat round dense icon="remove" :disable="item.quantity <= 1" :aria-label="`Disminuir ${item.name}`" @click="adjustQuantity('products', item, -1)" /><strong>{{ item.quantity }}</strong><q-btn flat round dense icon="add" :aria-label="`Aumentar ${item.name}`" @click="adjustQuantity('products', item, 1)" /></div><q-btn flat round dense icon="close" :aria-label="`Quitar ${item.name}`" @click="form.products.splice(form.products.indexOf(item), 1)" /></article>
+            </section>
+          </div>
+          <q-expansion-item dense icon="swap_horiz" label="Agregar productos de cambio (opcional)" class="order-changes-expansion"><section class="order-section order-changes-content">
+            <q-select v-model="form.changeId" outlined use-input input-debounce="0" clearable label="Buscar producto de cambio" :options="filteredProductOptions" emit-value map-options @filter="filterProducts" @update:model-value="addProduct('changes', $event)">
               <template #option="scope"><q-item v-bind="scope.itemProps"><q-item-section><q-item-label>{{ scope.opt.label }}</q-item-label><q-item-label caption>{{ scope.opt.number ? `#${scope.opt.number} · ` : '' }}{{ formatMoney(scope.opt.priceCents) }} por unidad</q-item-label></q-item-section></q-item></template>
             </q-select>
-          <div v-for="(item, index) in form.products" :key="item.id" class="order-line"><div><strong>{{ item.name }}</strong><div class="record-detail">{{ formatMoney(item.priceCents) }} por unidad</div></div><q-input v-model.number="item.quantity" outlined dense type="number" min="1" step="1" class="quantity" aria-label="Cantidad" /><q-btn flat round dense icon="close" aria-label="Quitar producto" @click="form.products.splice(index, 1)" /></div>
-          </section>
-          <section class="order-section">
-            <div class="order-section-heading"><h3>Productos de cambio</h3><span>{{ form.changes.length }} líneas</span></div>
-            <q-select v-model="form.changeId" outlined use-input input-debounce="0" clearable label="Buscar producto de cambio por nombre" :options="filteredProductOptions" emit-value map-options @filter="filterProducts" @update:model-value="addProduct('changes', $event)">
-              <template #option="scope"><q-item v-bind="scope.itemProps"><q-item-section><q-item-label>{{ scope.opt.label }}</q-item-label><q-item-label caption>{{ scope.opt.number ? `#${scope.opt.number} · ` : '' }}{{ formatMoney(scope.opt.priceCents) }} por unidad</q-item-label></q-item-section></q-item></template>
-            </q-select>
-          <div v-for="(item, index) in form.changes" :key="item.id" class="order-line"><div><strong>{{ item.name }}</strong><div class="record-detail">{{ formatMoney(item.priceCents) }} por unidad</div></div><q-input v-model.number="item.quantity" outlined dense type="number" min="1" step="1" class="quantity" aria-label="Cantidad de cambio" /><q-btn flat round dense icon="close" aria-label="Quitar producto de cambio" @click="form.changes.splice(index, 1)" /></div>
-          </section>
-          <div class="order-total"><span>Total</span><strong>{{ total }}</strong></div>
+            <article v-for="item in form.changes" :key="item.id" class="order-cart-line"><div class="cart-line-copy"><strong>{{ item.name }}</strong><span>#{{ item.number }} · {{ formatMoney(item.priceCents) }} c/u</span></div><div class="quantity-control"><q-btn flat round dense icon="remove" :disable="item.quantity <= 1" :aria-label="`Disminuir cambio ${item.name}`" @click="adjustQuantity('changes', item, -1)" /><strong>{{ item.quantity }}</strong><q-btn flat round dense icon="add" :aria-label="`Aumentar cambio ${item.name}`" @click="adjustQuantity('changes', item, 1)" /></div><q-btn flat round dense icon="close" :aria-label="`Quitar cambio ${item.name}`" @click="form.changes.splice(form.changes.indexOf(item), 1)" /></article>
+          </section></q-expansion-item>
+          <div class="order-summary-bar"><div><span>Total a cobrar</span><strong>{{ total }}</strong></div></div>
         </template><div v-if="error" class="notice error" role="alert">{{ error }}</div>
       </q-form></q-card-section>
-      <q-card-actions align="right" class="editor-actions"><q-btn flat label="Cancelar" @click="dialog = false" /><q-btn type="submit" form="record-form" color="primary" unelevated label="Guardar" :loading="busy" /></q-card-actions>
+      <q-card-actions align="right" class="editor-actions"><q-btn flat label="Cancelar" @click="dialog = false" /><q-btn type="submit" form="record-form" color="primary" unelevated :label="tab === 'orders' ? 'Guardar pedido' : 'Guardar'" :loading="busy" :disable="tab === 'orders' && (!form.customerId || !form.products?.length)" /></q-card-actions>
     </q-card></q-dialog>
     <q-dialog v-model="receiptPreviewDialog"><q-card class="receipt-preview-card">
       <q-card-section class="editor-header"><div><div class="eyebrow">VISTA PREVIA</div><h2>Ticket #{{ receiptPreviewNumber }}</h2></div><q-btn flat round dense icon="close" aria-label="Cerrar vista previa" @click="receiptPreviewDialog = false" /></q-card-section>

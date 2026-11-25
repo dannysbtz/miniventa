@@ -60,8 +60,29 @@ h1 { margin: 8px 0 0; font-size: 30px; line-height: 1.2; }
 .order-section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .order-section-heading h3 { margin: 0; font-size: 15px; font-weight: 700; }
 .order-section-heading span { color: #71817a; font-size: 12px; }
-.order-line { display: flex; align-items: center; gap: 10px; border-bottom: 1px solid #e3ebe5; padding-bottom: 12px; }
-.order-line > div:first-child { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.quantity { width: 75px; }
-.order-total { display: flex; justify-content: space-between; font-size: 17px; }
+.order-editor-card { display: flex; width: min(940px, calc(100vw - 32px)); height: min(820px, 92vh); max-height: 92vh; flex-direction: column; }
+.order-editor-card .editor-body { flex: 1; min-height: 0; max-height: none; overflow-y: auto; }
+.order-editor-form { min-height: 100%; gap: 18px; }
+.order-client-select { display: grid; grid-template-columns: 58px minmax(0, 1fr); align-items: center; gap: 12px; padding: 14px; border: 1px solid #dce5df; border-radius: 6px; background: #fff; }
+.order-step { color: #21634f; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.order-builder-layout { display: grid; grid-template-columns: minmax(230px, .8fr) minmax(0, 1.2fr); align-items: start; gap: 16px; }
+.order-product-picker, .order-cart { display: flex; min-width: 0; flex-direction: column; gap: 12px; padding: 16px; border: 1px solid #dce5df; border-radius: 6px; background: #fff; }
+.order-product-picker h3 { margin: -5px 0 0; font-size: 17px; }
+.picker-hint { margin: 0; color: #71817a; font-size: 12px; line-height: 1.5; }
+.order-cart { gap: 0; }
+.order-cart .order-section-heading { padding-bottom: 10px; }
+.cart-empty { display: flex; min-height: 120px; flex-direction: column; justify-content: center; align-items: center; gap: 8px; color: #809087; font-size: 13px; }
+.order-cart-line { display: flex; min-width: 0; align-items: center; gap: 6px; padding: 12px 0; border-top: 1px solid #e3ebe5; }
+.cart-line-copy { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.cart-line-copy span { color: #71817a; font-size: 11px; }
+.quantity-control { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; }
+.quantity-control strong { min-width: 22px; text-align: center; }
+.quantity-control .q-btn { min-height: 32px; min-width: 32px; }
+.order-changes-expansion { border: 1px solid #dce5df; border-radius: 6px; background: #fff; }
+.order-changes-content { padding: 0 16px 16px; }
+.order-summary-bar { position: sticky; bottom: -16px; z-index: 1; display: flex; justify-content: space-between; gap: 16px; margin: auto -16px -16px; padding: 14px 16px; border-top: 1px solid #dce5df; background: #f8faf8; }
+.order-summary-bar > div { display: flex; flex-direction: column; gap: 3px; }
+.order-summary-bar span { color: #71817a; font-size: 11px; }
+.order-summary-bar strong { font-size: 20px; }
+@media (max-width: 700px) { .order-editor-card { width: calc(100vw - 32px); height: calc(100dvh - 32px); max-width: calc(100vw - 32px); max-height: calc(100dvh - 32px); } .order-editor-card .editor-header { padding: 16px 16px 10px; } .order-editor-card .editor-body { padding: 10px 14px 16px; } .order-editor-card .editor-actions { padding: 10px 14px max(14px, env(safe-area-inset-bottom)); } .order-builder-layout { grid-template-columns: minmax(0, 1fr); gap: 12px; } .order-product-picker, .order-cart { padding: 13px; } .order-client-select { grid-template-columns: 1fr; gap: 4px; padding: 10px; } .order-summary-bar { bottom: -16px; margin-top: 2px; } }
 @media (max-width: 600px) { .toolbar { padding: 0 12px; gap: 8px; } .brand { font-size: 17px; } .toolbar .q-badge { font-size: 10px; } .workspace { padding: 28px 16px 60px; } .workspace-top { align-items: flex-start; } .workspace-top .q-btn { font-size: 12px; } .workspace-tabs .q-tab { padding: 0 5px; flex: 1; font-size: 11px; } .access-panel { padding-top: 70px; } .record-row { gap: 5px; } .printer-actions { align-items: flex-start; flex-direction: column; } .printer-actions .q-btn { align-self: stretch; } .printer-connection { align-items: flex-start; flex-wrap: wrap; padding: 14px; } .printer-connection .q-btn { margin-left: auto; } .settings-summary { grid-template-columns: 1fr; } }
