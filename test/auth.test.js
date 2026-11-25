@@ -107,6 +107,27 @@ test('renovación exige firmar un reto con la identidad del dispositivo', async 
   assert.equal(auth.getState().status, 'ready')
 })
 
+test('descarga de productos usa prueba de dispositivo y no borra sesión al fallar la red', async () => {
+  let options
+  let online = true
+  const products = [{ number: '001', name: 'Pan', priceCents: 2000 }]
+  const { auth, getSaved } = fixture(async (url, requestOptions) => {
+    if (url.endsWith('/login')) return response(200, loginBody)
+    options = requestOptions
+    if (!online) throw new TypeError('network')
+    return response(200, { products })
+  })
+  await auth.login('usuario', 'secret')
+  assert.deepEqual(await auth.fetchProducts(), products)
+  assert.equal(options.headers.Authorization, 'Bearer session')
+  assert.equal(options.headers['X-Device-Challenge'], 'signed-challenge')
+  assert.equal(options.headers['X-Device-Proof'], 'test-proof')
+  online = false
+  await assert.rejects(auth.fetchProducts(), /No se pudo conectar/)
+  assert.equal(auth.getState().status, 'ready')
+  assert.ok(getSaved())
+})
+
 test('401 y 403 invalidan sesión sin tratarlos como desconexión', async () => {
   for (const status of [401, 403]) {
     const { auth, getSaved } = fixture(async (url) => url.endsWith('/login') ? response(200, loginBody) : response(status))

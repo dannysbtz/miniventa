@@ -146,6 +146,14 @@ export function createAuth({ apiUrl, publicKey, storage, deviceIdentity, fetcher
       if (!pendingRefresh) pendingRefresh = serial(refresh).finally(() => { pendingRefresh = null })
       return pendingRefresh
     },
+    fetchProducts: () => serial(async () => {
+      if (!saved || state.status !== 'ready') throw new Error('No hay una sesión activa para actualizar productos.')
+      const response = await signedRequest('/api/products', { method: 'GET', headers: { Authorization: `Bearer ${saved.sessionToken}` } })
+      if (response.status === 401) { await clear('Sesión inválida o vencida. Inicia sesión de nuevo.'); throw new Error('Sesión inválida o vencida.') }
+      if (response.status === 403) { await clear('La suscripción está inactiva o vencida.'); throw new Error('La suscripción está inactiva o vencida.') }
+      if (!response.ok || !Array.isArray(response.body?.products)) throw new Error('No se pudo obtener el catálogo de productos.')
+      return response.body.products
+    }),
     check: () => serial(async () => {
       if (!saved) return
       try { await authorize() } catch (error) { emit({ status: 'blocked', user: null, message: error.message }) }

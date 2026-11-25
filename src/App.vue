@@ -16,6 +16,8 @@ const customerFilter = ref(null)
 const productSearch = ref('')
 const recordLimit = ref(30)
 const busy = ref(false)
+const syncingProducts = ref(false)
+const syncNotice = ref('')
 const error = ref('')
 const dialog = ref(false)
 const receiptPreviewDialog = ref(false)
@@ -268,6 +270,25 @@ async function remove(item) {
 }
 
 async function refresh() { if (auth) await auth.refresh() }
+async function refreshManually() {
+  if (!auth || syncingProducts.value) return
+  syncingProducts.value = true
+  error.value = ''
+  syncNotice.value = ''
+  try {
+    await auth.refresh()
+    const user = authState.value.user?.id
+    if (!user || authState.value.status !== 'ready') return
+    const products = await auth.fetchProducts()
+    if (authState.value.user?.id !== user) return
+    await repository.mergeProducts(user, products)
+    if (authState.value.user?.id !== user) return
+    await loadRecords()
+    syncNotice.value = `Catálogo actualizado: ${products.length} productos de la nube.`
+  } catch (issue) {
+    error.value = issue.message || 'No se pudo actualizar el catálogo de productos.'
+  } finally { syncingProducts.value = false }
+}
 function online() { refresh() }
 function visibility() { if (document.visibilityState === 'visible' && auth) { auth.check(); refresh() } }
 
@@ -321,7 +342,7 @@ onUnmounted(() => {
         <q-toolbar-title class="brand">Miniventa</q-toolbar-title>
         <q-badge :color="printerState.connected ? 'positive' : 'grey-7'" text-color="white" :label="printerState.connected ? 'Imp. conectada' : printerState.supported ? 'Imp. desconectada' : 'Sin Bluetooth'" />
         <template v-if="authState.user">
-          <q-btn flat round dense icon="sync" aria-label="Verificar conexión" @click="refresh"><q-tooltip>Verificar conexión</q-tooltip></q-btn>
+          <q-btn flat round dense icon="sync" aria-label="Actualizar productos y conexión" :loading="syncingProducts" @click="refreshManually"><q-tooltip>Actualizar productos y conexión</q-tooltip></q-btn>
           <q-btn flat round dense icon="logout" aria-label="Cerrar sesión" @click="auth.logout()"><q-tooltip>Cerrar sesión</q-tooltip></q-btn>
         </template>
       </q-toolbar>
@@ -354,6 +375,7 @@ onUnmounted(() => {
         <div v-else class="workspace">
           <div class="workspace-top"><div><div class="eyebrow">ESPACIO DE TRABAJO</div><h1>{{ tab === 'printer' ? 'Impresora' : titles[tab] }}</h1><p class="muted greeting">{{ tab === 'printer' ? 'Conexión Bluetooth' : authState.user.name }}</p></div><q-btn v-if="tab !== 'printer'" color="primary" unelevated :icon="tab === 'settings' ? 'edit' : 'add'" :label="tab === 'settings' ? 'Editar configuración' : `Nuevo ${singular[tab]}`" @click="tab === 'settings' ? openEditor(records.settings[0] || null) : openEditor()" /></div>
           <div v-if="authState.message" class="notice" role="status">{{ authState.message }}</div>
+          <div v-if="syncNotice" class="notice" role="status">{{ syncNotice }}</div>
           <q-tabs v-model="tab" align="left" active-color="primary" indicator-color="primary" class="workspace-tabs" dense><q-tab name="orders" icon="receipt_long" label="Pedidos" /><q-tab name="products" icon="inventory_2" label="Productos" /><q-tab name="customers" icon="people" label="Clientes" /><q-tab name="routes" icon="route" label="Rutas" /><q-tab name="settings" icon="settings" label="Config." /><q-tab name="printer" icon="print" label="Impresora" /></q-tabs>
           <div v-if="error && !dialog" class="notice error" role="alert">{{ error }}</div>
           <div v-if="tab === 'orders' && receiptNotice" class="notice" role="status">{{ receiptNotice }}</div>
