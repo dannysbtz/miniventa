@@ -26,6 +26,7 @@ const receiptPreviewNumber = ref('')
 const editing = ref(null)
 const form = ref({})
 const filteredProductOptions = ref([])
+const filteredCustomerOptions = ref([])
 const printerState = ref({ supported: false, connected: false, name: null, address: null })
 const printerDevices = ref([])
 const scanningPrinter = ref(false)
@@ -143,7 +144,17 @@ function openEditor(item = null) {
     ? { ...JSON.parse(JSON.stringify(item)), customerId: item.customer.id, productId: null, changeId: null }
     : { customerId: null, productId: null, changeId: null, products: [], changes: [] }
   filteredProductOptions.value = productOptions.value
+  filteredCustomerOptions.value = customerOptions.value
   dialog.value = true
+}
+
+function filterCustomers(value, update) {
+  const search = String(value ?? '').trim().toLocaleLowerCase()
+  update(() => {
+    filteredCustomerOptions.value = search
+      ? customerOptions.value.filter((item) => item.label.toLocaleLowerCase().includes(search))
+      : customerOptions.value
+  })
 }
 
 function filterProducts(value, update) {
@@ -567,7 +578,7 @@ onUnmounted(() => {
           <p class="muted branding-hint">Usa una imagen sencilla, de alto contraste. Se optimiza automáticamente para impresora térmica.</p>
         </template>
         <template v-if="tab === 'orders'">
-          <div class="order-client-select"><span class="order-step">PASO 1</span><q-select v-model="form.customerId" outlined use-input fill-input hide-selected input-debounce="0" label="Buscar cliente" :options="customerOptions" emit-value map-options required><template #no-option><q-item><q-item-section class="text-grey">No hay clientes con ese nombre</q-item-section></q-item></template></q-select></div>
+          <div class="order-client-select"><span class="order-step">PASO 1</span><q-select v-model="form.customerId" outlined use-input fill-input hide-selected clearable input-debounce="0" label="Buscar cliente por nombre" :options="filteredCustomerOptions" emit-value map-options @filter="filterCustomers"><template #no-option><q-item><q-item-section class="text-grey">No hay clientes con ese nombre</q-item-section></q-item></template></q-select></div>
           <div class="order-builder-layout">
             <section class="order-product-picker">
               <span class="order-step">PASO 2</span><h3>Agregar productos</h3>
