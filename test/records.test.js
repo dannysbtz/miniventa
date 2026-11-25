@@ -84,6 +84,33 @@ test('pedido guardado conserva su corte y aparece en venta y ganancia', async ()
   })
 })
 
+test('datos de muestra integran productos, clientes, pedidos y cortes sin tocar cuentas reales', async () => {
+  const repository = await createRepository()
+  const user = 'fixture-verificacion-general'
+  const bread = await repository.put(user, 'products', { number: '1', name: 'Pan de caja', priceCents: 3000, costCents: 1800 })
+  const milk = await repository.put(user, 'products', { number: '2', name: 'Leche entera', priceCents: 2500, costCents: 1500 })
+  const firstCustomer = await repository.put(user, 'customers', { number: '1', name: 'Abarrotes El Sol' })
+  const secondCustomer = await repository.put(user, 'customers', { number: '2', name: 'Tienda La Esquina' })
+  const openCut = await repository.put(user, 'cuts', { number: '1', status: 'open', openedAt: '2026-11-24T09:00:00.000Z' })
+  await repository.put(user, 'cuts', { number: '2', status: 'closed', openedAt: '2026-11-23T09:00:00.000Z', closedAt: '2026-11-23T18:00:00.000Z', orderCount: 0, salesCents: 0, costCents: 0, profitCents: 0, missingCostLines: 0 })
+  await repository.put(user, 'orders', {
+    number: '1', cutId: openCut.id, customer: { id: firstCustomer.id, name: firstCustomer.name },
+    products: [{ id: bread.id, name: bread.name, priceCents: bread.priceCents, costCents: bread.costCents, quantity: 3 }, { id: milk.id, name: milk.name, priceCents: milk.priceCents, costCents: milk.costCents, quantity: 2 }], changes: [],
+  })
+  await repository.put(user, 'orders', {
+    number: '2', cutId: openCut.id, customer: { id: secondCustomer.id, name: secondCustomer.name },
+    products: [{ id: milk.id, name: milk.name, priceCents: milk.priceCents, costCents: milk.costCents, quantity: 1 }], changes: [],
+  })
+
+  assert.equal((await repository.list(user, 'products')).length, 2)
+  assert.equal((await repository.list(user, 'customers')).length, 2)
+  assert.equal((await repository.list(user, 'cuts')).length, 2)
+  const orders = await repository.list(user, 'orders')
+  assert.equal(orders.length, 2)
+  assert.deepEqual(summarizeCut(orders, openCut.id), { orderCount: 2, salesCents: 16500, costCents: 9900, profitCents: 6600, missingCostLines: 0 })
+  assert.equal((await repository.list('other-fixture-user', 'orders')).length, 0)
+})
+
 test('cambios son instantáneas de productos validadas y no modifican el total', () => {
   const order = { number: '1', customer: { id: '1', name: 'Ana' }, products: [{ id: '2', name: 'Pan', priceCents: 10, quantity: 3 }], changes: [{ id: '3', name: 'Leche', priceCents: 200, quantity: 2 }] }
   const validated = validateRecord('orders', order)
