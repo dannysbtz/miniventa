@@ -14,6 +14,9 @@ android/.gradle/
 android/**/build/
 android/local.properties
 android/.idea/
+android/keystore.properties
+android/*.jks
+android/*.keystore
 *.local
 .env
 .env.*

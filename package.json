@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "test": "node --test test/*.test.js",
     "android:sync": "npm run build && cap sync android",
-    "android:demo:apk": "VITE_DEMO_MODE=true npm run android:sync && cd android && ./gradlew assembleDebug",
+    "android:release:apk": "npm run android:sync && cd android && ./gradlew assembleRelease",
     "android:open": "cap open android"
   },
   "dependencies": {

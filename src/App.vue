@@ -2,12 +2,12 @@
 import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { createAuth } from './auth/controller.js'
 import { apiBase, sessionStorage } from './auth/platform.js'
+import { validateOfflinePublicKey } from './auth/offline.js'
 import { createRepository } from './data/repository.js'
 import { formatMoney, orderTotal, parseMoney } from './domain/money.js'
 import { connectPrinter, disconnectPrinter, getPairedPrinters, getPrinterState, listenPrinterEvent, printBytes, scanPrinters, stopPrinterScan } from './printer/bluetooth.js'
 import { buildReceipt, loadReceiptLogo, receiptPreview } from './printer/receipt.js'
 
-const demoMode = import.meta.env.VITE_DEMO_MODE === 'true'
 const authState = ref({ status: 'loading', message: '', user: null, failures: 0 })
 const credentials = reactive({ username: '', password: '' })
 const tab = ref('orders')
@@ -164,7 +164,7 @@ async function printOrder(order) {
     if (!state.connected) throw new Error('No hay impresora conectada. El pedido está guardado; conecta una impresora para reimprimirlo.')
     let logo = null
     try { logo = await loadReceiptLogo() } catch { logo = null }
-    await printBytes(buildReceipt({ ...order, promoter: order.promoter || authState.value.user?.name || 'Prueba local' }, new Date(), logo))
+    await printBytes(buildReceipt({ ...order, promoter: order.promoter || authState.value.user?.name || 'Sin asignar' }, new Date(), logo))
     receiptNotice.value = `Ticket de la nota #${order.number} enviado a ${state.name || 'la impresora'}.`
   } catch (issue) {
     receiptNotice.value = `El pedido está guardado, pero no se pudo imprimir: ${issue.message || 'error de impresora'}`
@@ -176,7 +176,7 @@ function showReceiptPreview(order) {
   receiptPreviewNumber.value = order.number
   receiptPreviewText.value = receiptPreview(buildReceipt({
     ...order,
-    promoter: order.promoter || authState.value.user?.name || 'Prueba local',
+    promoter: order.promoter || authState.value.user?.name || 'Sin asignar',
   }))
   receiptPreviewDialog.value = true
 }
@@ -186,10 +186,8 @@ async function save() {
   busy.value = true
   error.value = ''
   try {
-    if (!demoMode) {
-      await auth.check()
-      if (!authState.value.user) throw new Error('La autorización ha vencido.')
-    }
+    await auth.check()
+    if (!authState.value.user) throw new Error('La autorización ha vencido.')
     let value = { ...form.value, id: editing.value?.id }
     if (tab.value === 'settings') value.id = editing.value?.id || 'business'
     if (tab.value === 'routes') value.number = value.code
@@ -226,7 +224,8 @@ async function save() {
 async function remove(item) {
   if (!window.confirm(`¿Eliminar ${singular[tab.value]} ${item.number}?`)) return
   try {
-    if (!demoMode) { await auth.check(); if (!authState.value.user) return }
+    await auth.check()
+    if (!authState.value.user) return
     await repository.remove(authState.value.user.id, tab.value, item.id)
     await loadRecords()
   }
@@ -252,18 +251,9 @@ onMounted(async () => {
   }
   try {
     repository = await createRepository()
-    if (demoMode) {
-      authState.value = {
-        status: 'ready',
-        message: 'Modo de prueba local: no se conecta al backend. Los datos se guardan en este teléfono.',
-        user: { id: 'demo-local', name: 'Prueba local' },
-        failures: 0,
-      }
-      return
-    }
     const base = apiBase(import.meta.env.VITE_API_URL)
     const publicKey = import.meta.env.VITE_OFFLINE_PUBLIC_KEY
-    if (!publicKey) throw new Error('Configura VITE_OFFLINE_PUBLIC_KEY con la clave pública confiable.')
+    await validateOfflinePublicKey(publicKey)
     auth = createAuth({ apiUrl: base, publicKey, storage: sessionStorage(), deviceIdentity: () => import('./auth/device-identity.js').then(({ getDeviceIdentity }) => getDeviceIdentity()), onChange: (value) => {
       authState.value = value
       clearTimeout(expiryTimer)
@@ -295,11 +285,10 @@ onUnmounted(() => {
         <q-icon name="storefront" size="25px" />
         <q-toolbar-title class="brand">Miniventa</q-toolbar-title>
         <q-badge :color="printerState.connected ? 'positive' : 'grey-7'" text-color="white" :label="printerState.connected ? 'Imp. conectada' : printerState.supported ? 'Imp. desconectada' : 'Sin Bluetooth'" />
-        <template v-if="authState.user && !demoMode">
+        <template v-if="authState.user">
           <q-btn flat round dense icon="sync" aria-label="Verificar conexión" @click="refresh"><q-tooltip>Verificar conexión</q-tooltip></q-btn>
           <q-btn flat round dense icon="logout" aria-label="Cerrar sesión" @click="auth.logout()"><q-tooltip>Cerrar sesión</q-tooltip></q-btn>
         </template>
-        <q-badge v-else-if="demoMode" color="white" text-color="primary" label="DEMO LOCAL" />
       </q-toolbar>
     </q-header>
     <q-page-container>

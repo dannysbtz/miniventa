@@ -11,7 +11,6 @@ export function sessionStorage() {
 }
 
 export function apiBase(configured) {
-  if (!configured && !Capacitor.isNativePlatform()) return ''
   let url
   try { url = new URL(configured) } catch { throw new Error('Configura VITE_API_URL con una URL HTTPS válida') }
   if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error('VITE_API_URL debe ser HTTPS y no contener credenciales, consulta ni fragmento')

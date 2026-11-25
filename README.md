@@ -31,16 +31,16 @@ Al guardar una nota, la aplicación primero la conserva localmente y, si hay una
 
 ## Android
 
-Para probar la interfaz y el almacenamiento local sin servidor, genera un APK de demostración con `npm run android:demo:apk`. Este APK entra directamente con el usuario local «Prueba local», guarda los registros en SQLite y muestra un aviso de modo demo; no intenta contactar la API ni aplica inicio de sesión o suscripción. No lo distribuyas ni lo uses como APK de producción. El comando de compilación normal no activa este modo.
+El proyecto `android/` incluye plugins nativos `DeviceIdentity` para Android Keystore y `BluetoothPrinter` para búsqueda/conexión Bluetooth Classic SPP. Instala Android Studio, Android SDK 36 y JDK 21. Configura `VITE_API_URL` con una URL HTTPS y `VITE_OFFLINE_PUBLIC_KEY` con la clave pública confiable en `.env.local`; sin ambas, la aplicación no permite iniciar sesión. Para firmar una versión release, crea un keystore Android y configura `android/keystore.properties` siguiendo el formato de `android/keystore.properties.example`. Guarda el keystore y sus contraseñas en un respaldo seguro; perderlos impide firmar futuras actualizaciones compatibles. Nunca los subas al repositorio.
 
-El proyecto `android/` incluye plugins nativos `DeviceIdentity` para Android Keystore y `BluetoothPrinter` para búsqueda/conexión Bluetooth Classic SPP. Instala Android Studio, Android SDK 36 y JDK 21, configura la clave pública y URL HTTPS, y ejecuta:
+Ejecuta para sincronizar los recursos Android y abrir el proyecto:
 
 ```bash
 npm run android:sync
 npm run android:open
 ```
 
-Compila y prueba desde Android Studio en un dispositivo o emulador Android 7.0 (API 24) o superior. Para validar conexión e impresión se necesita hardware real, una impresora Bluetooth Classic SPP y conceder los permisos solicitados; el emulador no sustituye esa prueba. Genera un APK Debug con `npm run android:sync` y `cd android && ./gradlew assembleDebug`; Gradle Wrapper 8.13 corresponde al Android Gradle Plugin 8.13 usado por este proyecto.
+Genera la APK firmada para producción con `npm run android:release:apk`, con `JAVA_HOME` y `ANDROID_HOME` configurados. El archivo queda en `android/app/build/outputs/apk/release/app-release.apk`. Compila y prueba desde Android Studio en un dispositivo o emulador Android 7.0 (API 24) o superior. Para validar conexión e impresión se necesita hardware real, una impresora Bluetooth Classic SPP y conceder los permisos solicitados; el emulador no sustituye esa prueba. Gradle Wrapper 8.13 corresponde al Android Gradle Plugin 8.13 usado por este proyecto.
 
 ## Pruebas
 

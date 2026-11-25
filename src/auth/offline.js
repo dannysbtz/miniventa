@@ -3,10 +3,15 @@ import { importSPKI, jwtVerify } from 'jose'
 export const MAX_OFFLINE_SECONDS = 7 * 24 * 60 * 60
 export const CLOCK_TOLERANCE_MS = 120000
 
-export async function verifyOffline(token, publicKey, now = Date.now(), expectedDeviceKey) {
+export async function validateOfflinePublicKey(publicKey) {
   if (!publicKey) throw new Error('Configura VITE_OFFLINE_PUBLIC_KEY con la clave pública confiable')
   const key = await importSPKI(publicKey.replace(/\\n/g, '\n'), 'RS256')
   if (key.algorithm.modulusLength < 2048) throw new Error('La clave pública RSA debe tener al menos 2048 bits')
+  return key
+}
+
+export async function verifyOffline(token, publicKey, now = Date.now(), expectedDeviceKey) {
+  const key = await validateOfflinePublicKey(publicKey)
   const { payload } = await jwtVerify(token, key, {
     algorithms: ['RS256'], issuer: 'miniventa-api', audience: 'miniventa-offline',
     currentDate: new Date(now), requiredClaims: ['sub', 'iat', 'exp', 'subscriptionEndsAt', 'token_use'],
