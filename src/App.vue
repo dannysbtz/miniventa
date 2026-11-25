@@ -68,8 +68,9 @@ const visibleRecords = computed(() => {
   const current = records[tab.value] || []
   let filtered = current
   if (tab.value === 'orders' && customerFilter.value) filtered = filtered.filter((item) => item.customer.id === customerFilter.value)
-  if (tab.value === 'products' && productSearch.value.trim()) {
-    const query = productSearch.value.trim().toLocaleLowerCase()
+  const productQuery = String(productSearch.value ?? '').trim().toLocaleLowerCase()
+  if (tab.value === 'products' && productQuery) {
+    const query = productQuery
     filtered = filtered.filter((item) => `${item.name} ${item.number}`.toLocaleLowerCase().includes(query))
   }
   return filtered
