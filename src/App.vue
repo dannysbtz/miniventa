@@ -10,6 +10,7 @@ import { buildReceipt, loadReceiptLogo, receiptPreview } from './printer/receipt
 
 const authState = ref({ status: 'loading', message: '', user: null, failures: 0 })
 const credentials = reactive({ username: '', password: '' })
+const showPassword = ref(false)
 const tab = ref('orders')
 const customerFilter = ref(null)
 const busy = ref(false)
@@ -299,7 +300,9 @@ onUnmounted(() => {
           <div class="eyebrow">TU NEGOCIO, EN ORDEN</div><h1>Iniciar sesión</h1><p class="muted">Accede a tu espacio de trabajo.</p>
           <q-form class="form-stack" @submit="login">
             <q-input v-model="credentials.username" outlined label="Usuario" autocomplete="username" maxlength="254" required />
-            <q-input v-model="credentials.password" outlined label="Contraseña" type="password" autocomplete="current-password" required />
+            <q-input v-model="credentials.password" outlined label="Contraseña" :type="showPassword ? 'text' : 'password'" autocomplete="current-password" required>
+              <template #append><q-btn type="button" flat round dense :icon="showPassword ? 'visibility_off' : 'visibility'" :aria-label="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'" @click="showPassword = !showPassword" /></template>
+            </q-input>
             <div v-if="authState.message || error" class="notice error" role="alert">{{ error || authState.message }}</div>
             <q-btn type="submit" color="primary" unelevated label="Entrar" :loading="busy" class="primary-action" />
           </q-form>
