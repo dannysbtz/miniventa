@@ -191,7 +191,7 @@ export function buildReceipt(order, printedAt = new Date(), logo = null) {
   return Uint8Array.from(bytes)
 }
 
-export function buildGeneralReceipt(order, printedAt = new Date()) {
+export function buildGeneralReceipt(order, printedAt = new Date(), branding = {}) {
   const receiptWidth = 32
   const bytes = []
   const text = (value) => { for (const line of wrap(value, receiptWidth)) bytes.push(...new TextEncoder().encode(line), 10) }
@@ -217,7 +217,11 @@ export function buildGeneralReceipt(order, printedAt = new Date()) {
   const date = (value) => new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 
   bytes.push(...command(27, 64), ...command(27, 77, 0), ...command(27, 51, 28), ...command(27, 97, 0))
-  emphasizedCenter('MINIVENTA')
+  if (branding.logo?.raster && branding.logo.width && branding.logo.height) {
+    const rowBytes = Math.ceil(branding.logo.width / 8)
+    bytes.push(...command(27, 97, 1), ...command(29, 118, 48, 0, rowBytes & 0xff, (rowBytes >> 8) & 0xff, branding.logo.height & 0xff, (branding.logo.height >> 8) & 0xff), ...branding.logo.raster, ...command(27, 97, 0), 10)
+  }
+  emphasizedCenter(branding.title || 'MINIVENTA')
   centered('NOTA DE VENTA')
   text(`Folio: ${order.number || ''}`)
   text(`Fecha: ${date(order.createdAt || printedAt)}`)
@@ -242,7 +246,17 @@ export function buildGeneralReceipt(order, printedAt = new Date()) {
 }
 
 export function receiptPreview(bytes) {
-  return new TextDecoder().decode(bytes)
+  const previewBytes = []
+  for (let index = 0; index < bytes.length;) {
+    if (bytes[index] === 29 && bytes[index + 1] === 118 && bytes[index + 2] === 48 && index + 7 < bytes.length) {
+      const rowBytes = bytes[index + 4] + (bytes[index + 5] << 8)
+      const height = bytes[index + 6] + (bytes[index + 7] << 8)
+      index += 8 + rowBytes * height
+      continue
+    }
+    previewBytes.push(bytes[index++])
+  }
+  return new TextDecoder().decode(Uint8Array.from(previewBytes))
     .replace(/\x1B(?:@|M[\s\S]|E[\s\S]|a[\s\S]|3[\s\S]|2)/g, '')
     .replace(/\x1D(?:V[\s\S]{1,2}|![\s\S])/g, '')
     .replace(/\*{4} PAGO CONTADO \*{3}/g, '**** PAGO CONTADO ***')

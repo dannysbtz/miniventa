@@ -9,7 +9,7 @@ function text(value, label, max = 150) {
 const VISIT_DAYS = ['L', 'M', 'Mi', 'J', 'V']
 
 export function validateRecord(type, value) {
-  const number = type === 'settings' ? 'business' : text(value.number, 'Número', 40)
+  const number = type === 'settings' ? 'business' : type === 'receiptBranding' ? 'receipt-branding' : text(value.number, 'Número', 40)
   if (type === 'routes') {
     const code = text(value.code || value.number, 'Código de ruta', 40)
     return { number: code, code, name: text(value.name, 'Nombre de ruta') }
@@ -20,6 +20,14 @@ export function validateRecord(type, value) {
       cedis: text(value.cedis, 'CEDIS', 40),
       promoter: text(value.promoter, 'Promotor', 100),
     }
+  }
+  if (type === 'receiptBranding') {
+    const title = text(value.title, 'Texto del encabezado', 32)
+    const logoDataUrl = String(value.logoDataUrl || '')
+    if (logoDataUrl && (!/^data:image\/(?:jpeg|png|webp);base64,[A-Za-z\d+/]+=*$/.test(logoDataUrl) || logoDataUrl.length > 100000)) {
+      throw new Error('El logo debe ser una imagen válida de máximo 100 KB')
+    }
+    return { number, title, logoDataUrl }
   }
   if (type === 'cuts') {
     const status = value.status

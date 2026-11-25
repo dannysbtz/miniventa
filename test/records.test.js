@@ -28,6 +28,20 @@ test('producto valida costo y pedido conserva el costo unitario como instantáne
   assert.equal(order.products[0].costCents, 300)
 })
 
+test('guarda branding del ticket por usuario y limita título/logo', async () => {
+  const repository = await createRepository()
+  const branding = await repository.put('branding-user', 'receiptBranding', {
+    title: 'Tienda La Esquina',
+    logoDataUrl: 'data:image/jpeg;base64,ZmFrZQ==',
+  })
+  const [saved] = await repository.list('branding-user', 'receiptBranding')
+  assert.equal(saved.title, 'Tienda La Esquina')
+  assert.equal(saved.logoDataUrl, branding.logoDataUrl)
+  assert.equal((await repository.list('other-user', 'receiptBranding')).length, 0)
+  assert.throws(() => validateRecord('receiptBranding', { title: 'x'.repeat(33), logoDataUrl: '' }))
+  assert.throws(() => validateRecord('receiptBranding', { title: 'Tienda', logoDataUrl: 'not-an-image' }))
+})
+
 test('corte calcula venta y ganancia y avisa si faltan costos', () => {
   const orders = [
     { cutId: 'cut-1', totalCents: 1000, products: [{ costCents: 300, quantity: 2 }] },

@@ -40,6 +40,17 @@ test('ticket general muestra CEDIS, promotor, cliente, cantidades e importe tota
   assert.doesNotMatch(preview, /AUTOVENTA|Comercializadora|CAMBIO FISICO|DESCUENTOS|Lala|Ruta Preventa|CEDIS|Promotor/)
 })
 
+test('ticket general permite texto personalizado y logo antes del encabezado', () => {
+  const logo = { raster: Uint8Array.from([0xaa, 0x55]), width: 8, height: 2 }
+  const bytes = buildGeneralReceipt(sample, new Date('2026-01-02T12:00:00Z'), { title: 'Tienda La Esquina', logo })
+  const raw = new TextDecoder().decode(bytes)
+  const preview = receiptPreview(bytes)
+  assert.ok(preview.startsWith('Tienda La Esquina\n'))
+  const logoCommand = String.fromCharCode(29, 118, 48, 0, 1, 0, 2, 0)
+  assert.ok(raw.indexOf(logoCommand) < raw.indexOf('Tienda La Esquina'))
+  assert.ok([...bytes].some((byte, index, all) => byte === 0xaa && all[index + 1] === 0x55))
+})
+
 test('genera ticket ESC/POS con venta, cambios informativos y total', () => {
   const bytes = buildReceipt(sample, new Date('2026-01-02T12:00:00Z'))
   const previewText = receiptPreview(bytes)

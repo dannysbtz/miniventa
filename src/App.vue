@@ -7,7 +7,7 @@ import { createRepository } from './data/repository.js'
 import { summarizeCut } from './domain/cuts.js'
 import { formatMoney, orderTotal, parseMoney } from './domain/money.js'
 import { connectPrinter, disconnectPrinter, getPairedPrinters, getPrinterState, listenPrinterEvent, printBytes, scanPrinters, stopPrinterScan } from './printer/bluetooth.js'
-import { buildGeneralReceipt, receiptPreview } from './printer/receipt.js'
+import { buildGeneralReceipt, loadReceiptLogo, receiptPreview } from './printer/receipt.js'
 
 const authState = ref({ status: 'loading', message: '', user: null, failures: 0 })
 const credentials = reactive({ username: '', password: '' })
@@ -28,9 +28,9 @@ const scanningPrinter = ref(false)
 const printerBusy = ref(false)
 const printerError = ref('')
 const receiptNotice = ref('')
-const records = reactive({ products: [], customers: [], orders: [], cuts: [] })
-const titles = { products: 'Productos', customers: 'Clientes', orders: 'Pedidos', cuts: 'Cortes' }
-const singular = { products: 'producto', customers: 'cliente', orders: 'pedido', cuts: 'corte' }
+const records = reactive({ products: [], customers: [], orders: [], cuts: [], receiptBranding: [] })
+const titles = { products: 'Productos', customers: 'Clientes', orders: 'Pedidos', cuts: 'Cortes', receiptBranding: 'Ticket' }
+const singular = { products: 'producto', customers: 'cliente', orders: 'pedido', cuts: 'corte', receiptBranding: 'ticket' }
 let auth
 let repository
 let checkTimer
@@ -59,6 +59,7 @@ const costRules = [
 const customerOptions = computed(() => records.customers.map((item) => ({ label: item.name, value: item.id })))
 const openCut = computed(() => records.cuts.find((cut) => cut.status === 'open') || null)
 const sortedCuts = computed(() => [...records.cuts].sort((a, b) => b.openedAt.localeCompare(a.openedAt)))
+const receiptBranding = computed(() => records.receiptBranding[0] || { title: 'MINIVENTA', logoDataUrl: '' })
 const visibleRecords = computed(() => {
   const current = records[tab.value] || []
   if (tab.value !== 'orders' || !customerFilter.value) return current
@@ -82,14 +83,14 @@ async function loadRecords() {
   if (!repository || !user) return
   const current = ++generation
   try {
-    const [products, customers, orders, cuts] = await Promise.all(['products', 'customers', 'orders', 'cuts'].map((type) => repository.list(user, type)))
-    if (current === generation && authState.value.user?.id === user) Object.assign(records, { products, customers, orders, cuts })
+    const [products, customers, orders, cuts, branding] = await Promise.all(['products', 'customers', 'orders', 'cuts', 'receiptBranding'].map((type) => repository.list(user, type)))
+    if (current === generation && authState.value.user?.id === user) Object.assign(records, { products, customers, orders, cuts, receiptBranding: branding })
   } catch { if (current === generation) error.value = 'No se pudieron leer los datos locales.' }
 }
 
 watch(() => authState.value.user?.id, (id) => {
   generation++
-  Object.assign(records, { products: [], customers: [], orders: [], cuts: [] })
+  Object.assign(records, { products: [], customers: [], orders: [], cuts: [], receiptBranding: [] })
   dialog.value = false
   if (id) loadRecords()
 })
@@ -111,6 +112,7 @@ function openEditor(item = null) {
   error.value = ''
   if (tab.value === 'products') form.value = item ? { ...item, price: formatMoney(item.priceCents), cost: item.costCents == null ? '' : formatMoney(item.costCents) } : { name: '', price: '', cost: '' }
   if (tab.value === 'customers') form.value = item ? { ...item } : { name: '' }
+  if (tab.value === 'receiptBranding') form.value = item ? { ...item } : { title: receiptBranding.value.title, logoDataUrl: receiptBranding.value.logoDataUrl }
   if (tab.value === 'orders') form.value = item
     ? { ...JSON.parse(JSON.stringify(item)), customerId: item.customer.id, productId: null, changeId: null }
     : { customerId: null, productId: null, changeId: null, products: [], changes: [] }
@@ -144,6 +146,48 @@ function adjustQuantity(type, item, amount) {
   const quantity = form.value[type][index].quantity + amount
   if (quantity < 1) return
   form.value[type][index].quantity = quantity
+}
+
+async function selectReceiptLogo(event) {
+  error.value = ''
+  const file = event.target.files?.[0]
+  event.target.value = ''
+  if (!file) return
+  if (!file.type.startsWith('image/') || file.size > 5 * 1024 * 1024) {
+    error.value = 'Selecciona una imagen de hasta 5 MB.'
+    return
+  }
+  const objectUrl = URL.createObjectURL(file)
+  try {
+    const image = new Image()
+    image.src = objectUrl
+    await new Promise((resolve, reject) => {
+      image.onload = resolve
+      image.onerror = reject
+    })
+    const scale = Math.min(1, 384 / image.naturalWidth, 192 / image.naturalHeight)
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+    const context = canvas.getContext('2d')
+    if (!context) throw new Error('No se pudo procesar la imagen.')
+    context.fillStyle = '#fff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    const logoDataUrl = canvas.toDataURL('image/jpeg', 0.78)
+    if (logoDataUrl.length > 100000) throw new Error('La imagen optimizada excede 100 KB; usa un logo más sencillo.')
+    form.value.logoDataUrl = logoDataUrl
+  } catch (issue) {
+    error.value = issue.message || 'No se pudo cargar el logo.'
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+async function receiptBrandingForPrint() {
+  let logo = null
+  if (receiptBranding.value.logoDataUrl) logo = await loadReceiptLogo(receiptBranding.value.logoDataUrl, 384)
+  return { title: receiptBranding.value.title || 'MINIVENTA', logo }
 }
 
 function addPrinter(device) {
@@ -210,7 +254,7 @@ async function printOrder(order) {
     printerState.value = state
     if (!state.supported) throw new Error('La impresión requiere la aplicación Android.')
     if (!state.connected) throw new Error('No hay impresora conectada. El pedido está guardado; conecta una impresora para reimprimirlo.')
-    await printBytes(buildGeneralReceipt(order))
+    await printBytes(buildGeneralReceipt(order, new Date(), await receiptBrandingForPrint()))
     receiptNotice.value = `Ticket de la nota #${order.number} enviado a ${state.name || 'la impresora'}.`
   } catch (issue) {
     receiptNotice.value = `El pedido está guardado, pero no se pudo imprimir: ${issue.message || 'error de impresora'}`
@@ -218,9 +262,14 @@ async function printOrder(order) {
   }
 }
 
-function showReceiptPreview(order) {
+async function showReceiptPreview(order) {
   receiptPreviewNumber.value = order.number
-  receiptPreviewText.value = receiptPreview(buildGeneralReceipt(order))
+  try {
+    receiptPreviewText.value = receiptPreview(buildGeneralReceipt(order, new Date(), await receiptBrandingForPrint()))
+  } catch (issue) {
+    receiptNotice.value = issue.message || 'No se pudo preparar la vista previa del ticket.'
+    return
+  }
   receiptPreviewDialog.value = true
 }
 
@@ -244,6 +293,11 @@ async function save() {
       delete value.location
       delete value.route
       delete value.visitDays
+    }
+    if (tab.value === 'receiptBranding') {
+      value.number = 'receipt-branding'
+      value.title = String(value.title || '').trim()
+      if (!value.title || value.title.length > 32) throw new Error('Escribe un encabezado de 1 a 32 caracteres.')
     }
     if (tab.value === 'orders') {
       if (editing.value?.cutId && records.cuts.find((cut) => cut.id === editing.value.cutId)?.status === 'closed') throw new Error('Los pedidos de un corte cerrado no se pueden modificar.')
@@ -420,9 +474,9 @@ onUnmounted(() => {
           <q-btn flat label="Volver al inicio de sesión" @click="auth.logout()" />
         </div>
         <div v-else class="workspace">
-          <div class="workspace-top"><div><div class="eyebrow">ESPACIO DE TRABAJO</div><h1>{{ tab === 'printer' ? 'Impresora' : titles[tab] || 'Miniventa' }}</h1><p class="muted greeting">{{ tab === 'printer' ? 'Conexión Bluetooth' : authState.user.name }}</p></div><q-btn v-if="titles[tab] && tab !== 'cuts'" color="primary" unelevated icon="add" :label="`Nuevo ${singular[tab]}`" :disable="tab === 'orders' && !openCut" @click="openEditor()" /></div>
+          <div class="workspace-top"><div><div class="eyebrow">ESPACIO DE TRABAJO</div><h1>{{ tab === 'printer' ? 'Impresora' : titles[tab] || 'Miniventa' }}</h1><p class="muted greeting">{{ tab === 'printer' ? 'Conexión Bluetooth' : authState.user.name }}</p></div><q-btn v-if="titles[tab] && tab !== 'cuts'" color="primary" unelevated :icon="tab === 'receiptBranding' ? 'edit' : 'add'" :label="tab === 'receiptBranding' ? 'Personalizar ticket' : `Nuevo ${singular[tab]}`" :disable="tab === 'orders' && !openCut" @click="openEditor(tab === 'receiptBranding' ? records.receiptBranding[0] || null : null)" /></div>
           <div v-if="authState.message" class="notice" role="status">{{ authState.message }}</div>
-          <q-tabs v-model="tab" align="left" active-color="primary" indicator-color="primary" class="workspace-tabs" dense><q-tab name="orders" icon="receipt_long" label="Pedidos" /><q-tab name="products" icon="inventory_2" label="Productos" /><q-tab name="customers" icon="people" label="Clientes" /><q-tab name="cuts" icon="point_of_sale" label="Cortes" /><q-tab name="printer" icon="print" label="Impresora" /></q-tabs>
+          <q-tabs v-model="tab" align="left" active-color="primary" indicator-color="primary" class="workspace-tabs" dense><q-tab name="orders" icon="receipt_long" label="Pedidos" /><q-tab name="products" icon="inventory_2" label="Productos" /><q-tab name="customers" icon="people" label="Clientes" /><q-tab name="cuts" icon="point_of_sale" label="Cortes" /><q-tab name="receiptBranding" icon="receipt" label="Ticket" /><q-tab name="printer" icon="print" label="Impresora" /></q-tabs>
           <div v-if="error && !dialog" class="notice error" role="alert">{{ error }}</div>
           <div v-if="tab === 'orders' && receiptNotice" class="notice" role="status">{{ receiptNotice }}</div>
           <section v-if="tab === 'printer'" class="printer-view">
@@ -447,6 +501,15 @@ onUnmounted(() => {
             <div v-if="!sortedCuts.length" class="empty-state"><q-icon name="point_of_sale" size="30px" /><strong>Aún no hay cortes</strong></div>
             <div v-else class="records-list"><article v-for="cut in sortedCuts" :key="cut.id" class="record-row cut-row"><div class="record-main"><div class="record-number">Corte #{{ cut.number }} · {{ cut.status === 'open' ? 'Abierto' : 'Cerrado' }}</div><strong>{{ formatDateTime(cut.openedAt) }}</strong><div v-if="cut.closedAt" class="record-detail">Cerrado {{ formatDateTime(cut.closedAt) }} · {{ cut.orderCount }} pedidos</div></div><div v-if="cut.status === 'closed'" class="cut-row-totals"><span>Ventas <strong>{{ formatMoney(cut.salesCents) }}</strong></span><span>Ganancia <strong v-if="cut.profitCents !== null">{{ formatMoney(cut.profitCents) }}</strong><strong v-else class="missing-cost">Pendiente</strong></span></div><span v-else class="state-pill state-open">En curso</span></article></div>
           </section>
+          <section v-else-if="tab === 'receiptBranding'" class="branding-panel">
+            <div class="branding-preview-label">VISTA PREVIA DEL ENCABEZADO</div>
+            <div class="branding-preview">
+              <img v-if="receiptBranding.logoDataUrl" :src="receiptBranding.logoDataUrl" alt="Logo del ticket">
+              <strong>{{ receiptBranding.title }}</strong>
+              <span>NOTA DE VENTA</span>
+            </div>
+            <p class="muted">El logo y el texto aparecerán al inicio del ticket impreso. Esta configuración se guarda en este dispositivo y usuario.</p>
+          </section>
           <template v-else>
           <q-select v-if="tab === 'orders'" v-model="customerFilter" class="customer-filter" outlined dense clearable label="Filtrar por cliente" :options="customerOptions" emit-value map-options />
           <div v-if="tab === 'orders' && !openCut" class="notice">Abre un corte para poder registrar ventas.</div>
@@ -468,6 +531,12 @@ onUnmounted(() => {
       <q-card-section class="editor-body"><q-form id="record-form" :class="['form-stack', { 'order-editor-form': tab === 'orders' }]" @submit="save">
         <template v-if="tab === 'products'"><q-input v-model="form.name" outlined label="Nombre" maxlength="150" required /><q-input v-model="form.price" outlined label="Precio de venta" inputmode="decimal" required /><q-input v-model="form.cost" outlined label="Precio de costo" inputmode="decimal" :rules="costRules" reactive-rules required /></template>
         <template v-if="tab === 'customers'"><q-input v-model="form.name" outlined label="Nombre del cliente" maxlength="150" required /></template>
+        <template v-if="tab === 'receiptBranding'">
+          <q-input v-model="form.title" outlined label="Texto del encabezado" maxlength="32" counter hint="Máximo 32 caracteres para que se imprima centrado." required />
+          <div class="logo-upload-row"><label class="logo-file-label" for="receipt-logo-file">Seleccionar logo</label><input id="receipt-logo-file" class="logo-file-input" type="file" accept="image/png,image/jpeg,image/webp" @change="selectReceiptLogo"><q-btn v-if="form.logoDataUrl" flat color="negative" icon="delete_outline" label="Quitar logo" @click="form.logoDataUrl = ''" /></div>
+          <div v-if="form.logoDataUrl" class="logo-preview"><img :src="form.logoDataUrl" alt="Vista previa del logo"><span>Vista previa del logo</span></div>
+          <p class="muted branding-hint">Usa una imagen sencilla, de alto contraste. Se optimiza automáticamente para impresora térmica.</p>
+        </template>
         <template v-if="tab === 'orders'">
           <div class="order-client-select"><span class="order-step">PASO 1</span><q-select v-model="form.customerId" outlined use-input fill-input hide-selected input-debounce="0" label="Buscar cliente" :options="customerOptions" emit-value map-options required><template #no-option><q-item><q-item-section class="text-grey">No hay clientes con ese nombre</q-item-section></q-item></template></q-select></div>
           <div class="order-builder-layout">
