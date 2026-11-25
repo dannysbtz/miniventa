@@ -1,6 +1,6 @@
 # Miniventa
 
-Frontend Vue 3, Quasar, Vite y Capacitor 8. Requiere Node.js 22.12 o posterior y npm.
+Variante General de Miniventa: frontend Vue 3, Quasar, Vite y Capacitor 8. Comparte API, cuentas y panel administrativo con la variante de `main`. Requiere Node.js 22.12 o posterior y npm.
 
 ## Configuración
 
@@ -23,11 +23,11 @@ La aplicación guarda una marca de tiempo máxima en el mismo almacenamiento seg
 
 ## Datos locales
 
-Productos, clientes y pedidos se guardan por identificador de usuario en SQLite en Android y en IndexedDB en navegador. Los números son únicos por usuario y tipo; los importes y totales se calculan como centavos enteros. Los pedidos guardan instantáneas de cliente, productos y productos de cambio separados en `changes`, por lo que eliminar o modificar un catálogo no cambia un pedido anterior. Cada cambio guarda identificador, nombre, precio y cantidad; puede añadirse, editarse o quitarse. Como el significado comercial de los cambios aún no está definido, no se suman ni restan automáticamente del total, que se calcula únicamente con `products`; `changes` no es un historial de edición. No hay sincronización, recuperación, exportación ni copia de seguridad automática: borrar los datos de la aplicación o del navegador los pierde. SQLite e IndexedDB no están cifrados; la separación por usuario es lógica, no protege de un dispositivo comprometido. Las copias Android y transferencias están deshabilitadas.
+Productos, clientes y pedidos se guardan por identificador de usuario en SQLite en Android y en IndexedDB en navegador. Los números internos se generan automáticamente y no se solicitan ni muestran para productos y clientes; los importes y totales se calculan como centavos enteros. Los pedidos conservan instantáneas de cliente y productos para que cambios posteriores del catálogo no alteren ventas anteriores. No se solicitan ubicación, rutas ni días de visita. No hay sincronización, recuperación, exportación ni copia de seguridad automática: borrar los datos de la aplicación o del navegador los pierde. SQLite e IndexedDB no están cifrados; la separación por usuario es lógica, no protege de un dispositivo comprometido. Las copias Android y transferencias están deshabilitadas.
 
 Los pedidos se pueden filtrar por cliente. En Android se pueden buscar dispositivos Bluetooth Classic, consultar los emparejados y conectar a impresoras que expongan el perfil serial SPP; el estado aparece en el encabezado. En Android 12 o posterior se necesita el permiso «Dispositivos cercanos» (`BLUETOOTH_SCAN`/`BLUETOOTH_CONNECT`); en Android 11 o anterior se necesita ubicación precisa para escanear. El plugin comprueba el permiso Android real, lo solicita al usar la función y muestra cuál falta. En Android 6 a 11 también puede ser necesario activar Ubicación del sistema para que el escaneo descubra dispositivos. La impresora debe emparejarse desde los ajustes si Android lo solicita. La interfaz web no permite usar este plugin nativo.
 
-Al guardar una nota, la aplicación primero la conserva localmente y, si hay una impresora conectada, envía el ticket ESC/POS. Cada pedido tiene además la acción «Reimprimir ticket». Si falla la impresión, el pedido no se pierde y se muestra el error para volver a intentar. El ticket muestra venta, cambios informativos y total; los cambios no se incluyen en el total. La salida física depende del modelo de impresora y no está verificada en hardware en este entorno. No hay pagos ni renovación automática de suscripciones.
+Al guardar una nota, la aplicación primero la conserva localmente y, si hay una impresora conectada, envía el ticket ESC/POS. Cada pedido tiene además la acción «Reimprimir ticket». Si falla la impresión, el pedido no se pierde y se muestra el error para volver a intentar. El ticket General incluye CEDIS, número de promotor, folio, fecha, cliente, productos, cantidades e importe total, sin los bloques comerciales de la plantilla original. La salida física depende del modelo de impresora y no está verificada en hardware en este entorno. No hay pagos ni renovación automática de suscripciones.
 
 ## Android
 

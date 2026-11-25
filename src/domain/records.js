@@ -28,9 +28,9 @@ export function validateRecord(type, value) {
   if (type === 'customers') {
     const visitDays = Array.isArray(value.visitDays) ? [...new Set(value.visitDays)] : []
     if (visitDays.some((day) => !VISIT_DAYS.includes(day))) throw new Error('Días de visita inválidos')
-    const route = value.route ? { id: text(value.route.id, 'Ruta'), code: text(value.route.code, 'Código de ruta', 40), name: text(value.route.name, 'Ruta') } : null
-    if (!route) throw new Error('Selecciona una ruta')
-    return { number, name: text(value.name, 'Nombre'), location: text(value.location, 'Ubicación'), route, visitDays }
+    const route = value.route ? { id: text(value.route.id, 'Ruta'), code: text(value.route.code, 'Código de ruta', 40), name: text(value.route.name, 'Ruta') } : undefined
+    const location = value.location ? text(value.location, 'Ubicación') : undefined
+    return { number, name: text(value.name, 'Nombre'), ...(location ? { location } : {}), ...(route ? { route } : {}), ...(visitDays.length ? { visitDays } : {}) }
   }
   if (type === 'orders') {
     const customer = value.customer

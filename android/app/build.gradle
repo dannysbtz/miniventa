@@ -10,7 +10,7 @@ android {
     namespace = "com.miniventa.app"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.miniventa.app"
+        applicationId "com.miniventa.general"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

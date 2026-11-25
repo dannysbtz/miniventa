@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildReceipt, receiptPreview } from '../src/printer/receipt.js'
+import { buildGeneralReceipt, buildReceipt, receiptPreview } from '../src/printer/receipt.js'
 
 const sample = {
   number: 'N-104',
@@ -17,6 +17,19 @@ const sample = {
   changes: [{ name: 'Taza azul', priceCents: 800, quantity: 1 }],
   totalCents: 3000,
 }
+
+test('ticket general muestra CEDIS, promotor, cliente, cantidades e importe total sin contenido de marca anterior', () => {
+  const preview = receiptPreview(buildGeneralReceipt(sample, new Date('2026-01-02T12:00:00Z')))
+  assert.match(preview, /MINIVENTA/)
+  assert.match(preview, /CEDIS: 7656/)
+  assert.match(preview, /Promotor: 37669/)
+  assert.match(preview, /Folio: N-104/)
+  assert.match(preview, /Cliente: Minisuper Patty/)
+  assert.match(preview, /2 x Cafe molido/)
+  assert.match(preview, /\$12\.50 c\/u\s+\$25\.00/)
+  assert.match(preview, /TOTAL\s+\$30\.00/)
+  assert.doesNotMatch(preview, /AUTOVENTA|Comercializadora|CAMBIO FISICO|DESCUENTOS|Lala|Ruta Preventa/)
+})
 
 test('genera ticket ESC/POS con venta, cambios informativos y total', () => {
   const bytes = buildReceipt(sample, new Date('2026-01-02T12:00:00Z'))

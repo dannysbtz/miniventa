@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Miniventa</string>
-    <string name="title_activity_main">Miniventa</string>
-    <string name="package_name">com.miniventa.app</string>
-    <string name="custom_url_scheme">com.miniventa.app</string>
+    <string name="app_name">Miniventa General</string>
+    <string name="title_activity_main">Miniventa General</string>
+    <string name="package_name">com.miniventa.general</string>
+    <string name="custom_url_scheme">com.miniventa.general</string>
 </resources>

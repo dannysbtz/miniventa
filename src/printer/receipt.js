@@ -191,6 +191,41 @@ export function buildReceipt(order, printedAt = new Date(), logo = null) {
   return Uint8Array.from(bytes)
 }
 
+export function buildGeneralReceipt(order, printedAt = new Date()) {
+  const bytes = []
+  const text = (value) => { for (const line of wrap(value)) bytes.push(...new TextEncoder().encode(line), 10) }
+  const fixedLine = (value) => {
+    const line = printerText(value)
+    bytes.push(...new TextEncoder().encode(line.length > WIDTH ? line.slice(0, WIDTH) : line.padEnd(WIDTH)), 10)
+  }
+  const centered = (value) => {
+    const line = printerText(value).slice(0, WIDTH)
+    bytes.push(...new TextEncoder().encode(`${' '.repeat(Math.max(0, Math.floor((WIDTH - line.length) / 2)))}${line}`), 10)
+  }
+  const money = (cents) => `$${formatMoney(cents)}`
+  const date = (value) => new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
+
+  bytes.push(...command(27, 64), ...command(27, 77, 1), ...command(27, 51, 21), ...command(27, 97, 0))
+  centered('MINIVENTA')
+  centered('NOTA DE VENTA')
+  text(`CEDIS: ${order.cedis || ''}`)
+  text(`Promotor: ${order.promoterNumber || ''}`)
+  text(`Folio: ${order.number || ''}`)
+  text(`Fecha: ${date(order.createdAt || printedAt)}`)
+  fixedLine('-'.repeat(WIDTH))
+  text(`Cliente: ${order.customer.name}`)
+  fixedLine('-'.repeat(WIDTH))
+  for (const item of order.products) {
+    text(`${item.quantity} x ${item.name}`)
+    fixedLine(`${money(item.priceCents)} c/u${money(item.priceCents * item.quantity).padStart(WIDTH - money(item.priceCents).length - 6)}`)
+  }
+  fixedLine('-'.repeat(WIDTH))
+  fixedLine(`TOTAL${money(order.totalCents).padStart(WIDTH - 5)}`)
+  text('Gracias por su compra')
+  bytes.push(...command(27, 50), 10, 10, 10, ...command(29, 86, 1))
+  return Uint8Array.from(bytes)
+}
+
 export function receiptPreview(bytes) {
   return new TextDecoder().decode(bytes)
     .replace(/\x1B(?:@|M[\s\S]|E[\s\S]|a[\s\S]|3[\s\S]|2)/g, '')

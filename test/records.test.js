@@ -6,10 +6,15 @@ import { createRepository } from '../src/data/repository.js'
 
 test('valida entidades y calcula total de pedido desde líneas', () => {
   assert.throws(() => validateRecord('products', { number: '1', name: '', priceCents: 2 }))
-  assert.throws(() => validateRecord('customers', { number: '1', name: 'Ana', city: 'Lima' }))
+  assert.throws(() => validateRecord('customers', { number: '1', name: '' }))
   assert.throws(() => validateRecord('orders', { number: '1', customer: { id: '1', name: 'Ana' }, products: [], changes: [] }))
   const order = validateRecord('orders', { number: '1', customer: { id: '1', name: 'Ana' }, products: [{ id: '2', name: 'Pan', priceCents: 10, quantity: 3 }], changes: [], totalCents: 999 })
   assert.equal(order.totalCents, 30)
+})
+
+test('el perfil general permite clientes sin ubicación, ruta ni días de visita', () => {
+  const customer = validateRecord('customers', { number: '1', name: 'Ana' })
+  assert.deepEqual(customer, { number: '1', name: 'Ana' })
 })
 
 test('cambios son instantáneas de productos validadas y no modifican el total', () => {
