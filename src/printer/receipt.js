@@ -192,34 +192,45 @@ export function buildReceipt(order, printedAt = new Date(), logo = null) {
 }
 
 export function buildGeneralReceipt(order, printedAt = new Date()) {
+  const receiptWidth = 32
   const bytes = []
-  const text = (value) => { for (const line of wrap(value)) bytes.push(...new TextEncoder().encode(line), 10) }
+  const text = (value) => { for (const line of wrap(value, receiptWidth)) bytes.push(...new TextEncoder().encode(line), 10) }
   const fixedLine = (value) => {
     const line = printerText(value)
-    bytes.push(...new TextEncoder().encode(line.length > WIDTH ? line.slice(0, WIDTH) : line.padEnd(WIDTH)), 10)
+    bytes.push(...new TextEncoder().encode(line.length > receiptWidth ? line.slice(0, receiptWidth) : line.padEnd(receiptWidth)), 10)
   }
   const centered = (value) => {
-    const line = printerText(value).slice(0, WIDTH)
-    bytes.push(...new TextEncoder().encode(`${' '.repeat(Math.max(0, Math.floor((WIDTH - line.length) / 2)))}${line}`), 10)
+    const line = printerText(value).slice(0, receiptWidth)
+    bytes.push(...new TextEncoder().encode(`${' '.repeat(Math.max(0, Math.floor((receiptWidth - line.length) / 2)))}${line}`), 10)
+  }
+  const emphasizedCenter = (value) => {
+    bytes.push(...command(27, 69, 1), ...command(29, 33, 16))
+    centered(value)
+    bytes.push(...command(29, 33, 0), ...command(27, 69, 0))
   }
   const money = (cents) => `$${formatMoney(cents)}`
   const date = (value) => new Intl.DateTimeFormat('es-MX', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(value))
 
-  bytes.push(...command(27, 64), ...command(27, 77, 1), ...command(27, 51, 21), ...command(27, 97, 0))
-  centered('MINIVENTA')
+  bytes.push(...command(27, 64), ...command(27, 77, 0), ...command(27, 51, 28), ...command(27, 97, 0))
+  emphasizedCenter('MINIVENTA')
   centered('NOTA DE VENTA')
   text(`Folio: ${order.number || ''}`)
   text(`Fecha: ${date(order.createdAt || printedAt)}`)
-  fixedLine('-'.repeat(WIDTH))
+  fixedLine('-'.repeat(receiptWidth))
   text(`Cliente: ${order.customer.name}`)
   fixedLine('-'.repeat(WIDTH))
   for (const item of order.products) {
     text(`${item.quantity} x ${item.name}`)
-    fixedLine(`${money(item.priceCents)} c/u${money(item.priceCents * item.quantity).padStart(WIDTH - money(item.priceCents).length - 6)}`)
+    fixedLine(`${money(item.priceCents)} c/u${money(item.priceCents * item.quantity).padStart(receiptWidth - money(item.priceCents).length - 6)}`)
   }
-  fixedLine('-'.repeat(WIDTH))
-  fixedLine(`TOTAL${money(order.totalCents).padStart(WIDTH - 5)}`)
-  text('Gracias por su compra')
+  fixedLine('-'.repeat(receiptWidth))
+  fixedLine(`TOTAL${money(order.totalCents).padStart(receiptWidth - 5)}`)
+  bytes.push(...command(27, 69, 1))
+  centered('Gracias por su compra')
+  bytes.push(...command(27, 69, 0))
+  centered('Agradecemos su preferencia.')
+  text('Conserve esta nota para cualquier aclaracion.')
+  centered('Esperamos atenderle pronto.')
   bytes.push(...command(27, 50), 10, 10, 10, ...command(29, 86, 1))
   return Uint8Array.from(bytes)
 }
