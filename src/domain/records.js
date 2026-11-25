@@ -78,7 +78,8 @@ export function validateRecord(type, value) {
     const promoterNumber = value.promoterNumber ? text(value.promoterNumber, 'Número de promotor', 100) : undefined
     const cedis = value.cedis ? text(value.cedis, 'CEDIS', 40) : undefined
     const route = value.route ? { code: text(value.route.code, 'Código de ruta', 40), name: text(value.route.name, 'Ruta') } : undefined
-    return { number, customer: customerSnapshot, products, changes, totalCents, createdAt, ...(promoter ? { promoter } : {}), ...(promoterNumber ? { promoterNumber } : {}), ...(cedis ? { cedis } : {}), ...(route ? { route } : {}) }
+    const cutId = value.cutId ? text(value.cutId, 'Corte', 100) : undefined
+    return { number, customer: customerSnapshot, products, changes, totalCents, createdAt, ...(cutId ? { cutId } : {}), ...(promoter ? { promoter } : {}), ...(promoterNumber ? { promoterNumber } : {}), ...(cedis ? { cedis } : {}), ...(route ? { route } : {}) }
   }
   throw new Error('Tipo de registro inválido')
 }

@@ -50,6 +50,26 @@ test('corte abierto y resumen cerrado se guardan por usuario', async () => {
   assert.equal((await repository.list('another-user', 'cuts')).length, 0)
 })
 
+test('pedido guardado conserva su corte y aparece en venta y ganancia', async () => {
+  const repository = await createRepository()
+  const order = await repository.put('ventas-user', 'orders', {
+    number: '1',
+    cutId: 'cut-open',
+    customer: { id: 'customer-1', name: 'Ana' },
+    products: [{ id: 'product-1', name: 'Pan', priceCents: 500, costCents: 300, quantity: 2 }],
+    changes: [],
+  })
+  assert.equal(order.cutId, 'cut-open')
+  const savedOrders = await repository.list('ventas-user', 'orders')
+  assert.deepEqual(summarizeCut(savedOrders, 'cut-open'), {
+    orderCount: 1,
+    salesCents: 1000,
+    costCents: 600,
+    profitCents: 400,
+    missingCostLines: 0,
+  })
+})
+
 test('cambios son instantáneas de productos validadas y no modifican el total', () => {
   const order = { number: '1', customer: { id: '1', name: 'Ana' }, products: [{ id: '2', name: 'Pan', priceCents: 10, quantity: 3 }], changes: [{ id: '3', name: 'Leche', priceCents: 200, quantity: 2 }] }
   const validated = validateRecord('orders', order)
