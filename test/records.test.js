@@ -22,6 +22,8 @@ test('producto valida costo y pedido conserva el costo unitario como instantáne
   const product = validateRecord('products', { number: '1', name: 'Pan', priceCents: 500, costCents: 300 })
   assert.equal(product.costCents, 300)
   assert.throws(() => validateRecord('products', { number: '2', name: 'Pan', priceCents: 500, costCents: -1 }))
+  assert.throws(() => validateRecord('products', { number: '3', name: 'Pan', priceCents: 300, costCents: 301 }), /mayor que el precio de venta/)
+  assert.equal(validateRecord('products', { number: '4', name: 'Pan', priceCents: 300, costCents: 300 }).costCents, 300)
   const order = validateRecord('orders', { number: '1', customer: { id: 'c1', name: 'Ana' }, products: [{ id: 'p1', name: 'Pan', priceCents: 500, costCents: 300, quantity: 2 }], changes: [] })
   assert.equal(order.products[0].costCents, 300)
 })

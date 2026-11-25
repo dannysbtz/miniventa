@@ -40,6 +40,7 @@ export function validateRecord(type, value) {
     if (!Number.isSafeInteger(value.priceCents) || value.priceCents < 0) throw new Error('Precio inválido')
     const costCents = value.costCents == null || value.costCents === '' ? null : value.costCents
     if (costCents !== null && (!Number.isSafeInteger(costCents) || costCents < 0)) throw new Error('Costo inválido')
+    if (costCents !== null && costCents > value.priceCents) throw new Error('El costo no puede ser mayor que el precio de venta')
     return { number, name: text(value.name, 'Nombre'), priceCents: value.priceCents, costCents }
   }
   if (type === 'customers') {
