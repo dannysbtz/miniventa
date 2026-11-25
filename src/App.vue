@@ -38,6 +38,7 @@ let renewTimer
 let expiryTimer
 let printerListeners = []
 let generation = 0
+let printerScanTimer
 
 const total = computed(() => {
   try { return formatMoney(orderTotal(form.value.products || [])) } catch { return '0.00' }
@@ -93,7 +94,10 @@ watch(() => authState.value.user?.id, (id) => {
   if (id) loadRecords()
 })
 
-watch(tab, (value) => { if (value === 'printer') loadPrinters() })
+watch(tab, (value) => {
+  if (value === 'printer') loadPrinters()
+  else if (scanningPrinter.value) stopActivePrinterScan()
+})
 
 async function login() {
   if (!credentials.username.trim() || !credentials.password) { error.value = 'Introduce usuario y contraseña.'; return }
@@ -158,14 +162,31 @@ async function loadPrinters() {
 
 async function searchPrinters() {
   printerError.value = ''
+  clearTimeout(printerScanTimer)
   try {
+    scanningPrinter.value = false
+    await stopPrinterScan().catch(() => {})
     printerDevices.value = await getPairedPrinters()
     scanningPrinter.value = true
+    printerScanTimer = setTimeout(() => {
+      scanningPrinter.value = false
+      stopPrinterScan().catch(() => {})
+      if (!printerDevices.value.length) printerError.value = 'La búsqueda tardó demasiado. Verifica los permisos Bluetooth e inténtalo de nuevo.'
+    }, 25000)
     await scanPrinters()
   } catch (issue) {
+    clearTimeout(printerScanTimer)
     scanningPrinter.value = false
     printerError.value = issue.message || 'No se pudo buscar impresoras Bluetooth.'
   }
+}
+
+function stopActivePrinterScan() {
+  clearTimeout(printerScanTimer)
+  scanningPrinter.value = false
+  stopPrinterScan().catch((issue) => {
+    printerError.value = issue.message || 'No se pudo detener la búsqueda Bluetooth.'
+  })
 }
 
 async function connectToPrinter(device) {
@@ -320,9 +341,13 @@ onMounted(async () => {
     printerState.value = await getPrinterState()
     printerListeners = await Promise.all([
       listenPrinterEvent('deviceFound', addPrinter),
-      listenPrinterEvent('scanFinished', () => { scanningPrinter.value = false }),
+      listenPrinterEvent('scanFinished', () => {
+        clearTimeout(printerScanTimer)
+        scanningPrinter.value = false
+        if (!printerDevices.value.length) printerError.value = 'No se encontraron impresoras. Confirma que esté encendida y emparejada.'
+      }),
       listenPrinterEvent('connectionChanged', (state) => { printerState.value = { supported: true, ...state } }),
-      listenPrinterEvent('scanError', (event) => { scanningPrinter.value = false; printerError.value = event.message || 'Error durante la búsqueda.' }),
+      listenPrinterEvent('scanError', (event) => { clearTimeout(printerScanTimer); scanningPrinter.value = false; printerError.value = event.message || 'Error durante la búsqueda.' }),
     ])
   } catch (issue) {
     printerState.value = { supported: false, connected: false, name: null, address: null }
@@ -347,6 +372,7 @@ onMounted(async () => {
   } catch (issue) { authState.value = { status: 'config', message: issue.message, user: null } }
 })
 onUnmounted(() => {
+  clearTimeout(printerScanTimer)
   clearInterval(checkTimer)
   clearInterval(renewTimer)
   clearTimeout(expiryTimer)
@@ -394,7 +420,7 @@ onUnmounted(() => {
           <q-btn flat label="Volver al inicio de sesión" @click="auth.logout()" />
         </div>
         <div v-else class="workspace">
-          <div class="workspace-top"><div><div class="eyebrow">ESPACIO DE TRABAJO</div><h1>{{ tab === 'printer' ? 'Impresora' : titles[tab] }}</h1><p class="muted greeting">{{ tab === 'printer' ? 'Conexión Bluetooth' : authState.user.name }}</p></div><q-btn v-if="tab !== 'printer' && tab !== 'cuts'" color="primary" unelevated icon="add" :label="`Nuevo ${singular[tab]}`" :disable="tab === 'orders' && !openCut" @click="openEditor()" /></div>
+          <div class="workspace-top"><div><div class="eyebrow">ESPACIO DE TRABAJO</div><h1>{{ tab === 'printer' ? 'Impresora' : titles[tab] || 'Miniventa' }}</h1><p class="muted greeting">{{ tab === 'printer' ? 'Conexión Bluetooth' : authState.user.name }}</p></div><q-btn v-if="titles[tab] && tab !== 'cuts'" color="primary" unelevated icon="add" :label="`Nuevo ${singular[tab]}`" :disable="tab === 'orders' && !openCut" @click="openEditor()" /></div>
           <div v-if="authState.message" class="notice" role="status">{{ authState.message }}</div>
           <q-tabs v-model="tab" align="left" active-color="primary" indicator-color="primary" class="workspace-tabs" dense><q-tab name="orders" icon="receipt_long" label="Pedidos" /><q-tab name="products" icon="inventory_2" label="Productos" /><q-tab name="customers" icon="people" label="Clientes" /><q-tab name="cuts" icon="point_of_sale" label="Cortes" /><q-tab name="printer" icon="print" label="Impresora" /></q-tabs>
           <div v-if="error && !dialog" class="notice error" role="alert">{{ error }}</div>
@@ -409,7 +435,7 @@ onUnmounted(() => {
               <div v-else class="records-list"><article v-for="device in printerDevices" :key="device.address" class="record-row"><div class="record-main"><strong>{{ device.name }}</strong><div class="record-detail">{{ device.paired ? 'Emparejada' : 'Detectada' }}</div></div><q-btn color="primary" outline :label="printerState.address === device.address && printerState.connected ? 'Conectada' : 'Conectar'" :disable="printerBusy || (printerState.address === device.address && printerState.connected)" :loading="printerBusy && printerState.address === device.address" @click="connectToPrinter(device)" /></article></div>
             </template>
           </section>
-          <section v-if="tab === 'cuts'" class="cuts-panel">
+          <section v-else-if="tab === 'cuts'" class="cuts-panel">
             <div v-if="openCut" class="cut-live-summary">
               <div class="cut-state"><span class="state-indicator"></span><div><strong>Corte #{{ openCut.number }} abierto</strong><small>Desde {{ formatDateTime(openCut.openedAt) }}</small></div></div>
               <div class="cut-metrics"><div><span>VENTAS</span><strong>{{ formatMoney(cutSummary(openCut).salesCents) }}</strong></div><div><span>GANANCIA</span><strong v-if="cutSummary(openCut).profitCents !== null">{{ formatMoney(cutSummary(openCut).profitCents) }}</strong><strong v-else class="missing-cost">Costo pendiente</strong></div><div><span>PEDIDOS</span><strong>{{ cutSummary(openCut).orderCount }}</strong></div></div>
@@ -426,7 +452,7 @@ onUnmounted(() => {
           <div v-if="tab === 'orders' && !openCut" class="notice">Abre un corte para poder registrar ventas.</div>
           <div v-if="tab === 'orders' && openCut" class="notice cut-inline-status">Corte #{{ openCut.number }} abierto · {{ formatMoney(cutSummary(openCut).salesCents) }} vendido</div>
           <div class="list-heading"><span>{{ titles[tab] }}</span><span>{{ visibleRecords.length }}{{ tab === 'orders' && customerFilter ? ` de ${records.orders.length}` : '' }} registros</span></div>
-          <div v-if="!visibleRecords.length" class="empty-state"><q-icon :name="tab === 'orders' ? 'receipt_long' : tab === 'products' ? 'inventory_2' : 'people_outline'" size="30px" /><strong>{{ tab === 'orders' && customerFilter ? 'No hay pedidos de este cliente' : `Aún no hay ${titles[tab].toLowerCase()}` }}</strong></div>
+          <div v-if="!visibleRecords.length" class="empty-state"><q-icon :name="tab === 'orders' ? 'receipt_long' : tab === 'products' ? 'inventory_2' : 'people_outline'" size="30px" /><strong>{{ tab === 'orders' && customerFilter ? 'No hay pedidos de este cliente' : `Aún no hay ${(titles[tab] || 'registros').toLowerCase()}` }}</strong></div>
           <div v-else class="records-list"><article v-for="item in visibleRecords" :key="item.id" class="record-row">
             <div class="record-main"><div v-if="tab === 'orders'" class="record-number">Folio #{{ item.number }}{{ item.cutId && records.cuts.find((cut) => cut.id === item.cutId)?.status === 'closed' ? ' · Corte cerrado' : '' }}</div><strong>{{ tab === 'orders' ? item.customer.name : item.name }}</strong><div v-if="tab === 'orders'" class="record-detail">{{ item.products.length }} productos</div><div v-if="tab === 'products'" class="record-detail">Costo {{ item.costCents == null ? 'pendiente' : formatMoney(item.costCents) }} · Ganancia {{ item.costCents == null ? 'pendiente' : formatMoney(item.priceCents - item.costCents) }}</div></div>
             <div v-if="tab === 'products' || tab === 'orders'" class="record-amount">{{ formatMoney(tab === 'products' ? item.priceCents : item.totalCents) }}</div>
